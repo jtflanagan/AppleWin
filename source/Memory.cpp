@@ -1834,11 +1834,11 @@ inline DWORD getRandomTime()
 void MemReset()
 {
 	// INITIALIZE THE PAGING TABLES
-	ZeroMemory(memshadow, 256 * sizeof(LPBYTE));
-	ZeroMemory(memwrite, 256 * sizeof(LPBYTE));
+	ZeroMemory(memshadow, 256*sizeof(LPBYTE));
+	ZeroMemory(memwrite , 256*sizeof(LPBYTE));
 
 	// INITIALIZE THE RAM IMAGES
-	ZeroMemory(memaux, 0x10000);
+	ZeroMemory(memaux ,0x10000);
 	ZeroMemory(memmain,0x10000);
 
 	// Init the I/O ROM vars
@@ -1860,8 +1860,6 @@ void MemReset()
 	// OR
 	//   F2, Ctrl-F2, F7, HGR
 	DWORD randTime = getRandomTime();
-
-	g_nMemoryClearType = MIP_FF_FF_00_00;
 
 	MemoryInitPattern_e eMemoryInitPattern = static_cast<MemoryInitPattern_e>(g_nMemoryClearType);
 
