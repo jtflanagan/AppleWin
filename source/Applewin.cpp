@@ -1900,10 +1900,6 @@ static bool ProcessCmdLine(LPSTR lpCmdLine)
 		{
 			g_cmdLine.bRemoveNoSlotClock = true;
 		}
-				else if (strcmp(lpCmdLine, "-no-nsc") == 0)
-		{
-			g_cmdLine.bRemoveNoSlotClock = true;
-		}
 		else	// unsupported
 		{
 			LogFileOutput("Unsupported arg: %s\n", lpCmdLine);
