@@ -68,13 +68,13 @@ struct Info_WOZ {
 	std::string Version;
 	UINT32 sig;
 };
-Info_WOZ g_infoWoz;
+Info_WOZ g_infoWoz = { std::string(UNKNOWN_VOLUME_NAME), std::string(), std::string("1.0"), 0 };
 
 struct Info_HDV {
 	std::string VolumeName;
 	UINT32 sig;
 };
-Info_HDV g_infoHdv;
+Info_HDV g_infoHdv = { std::string(UNKNOWN_VOLUME_NAME), 0 };
 
 UINT iCurrentTicks;						// Used to check the repeat interval
 UINT8 *pReorderedFramebufferbits = new UINT8[GetFrameBufferWidth() * GetFrameBufferHeight() * sizeof(bgra_t)]; // the frame realigned properly
@@ -121,7 +121,7 @@ LPBYTE RemoteControlManager::initializeMem(UINT size)
 {
 	if (GameLink::GetGameLinkEnabled())
 	{
-		iOldVolumeLevel = SpkrGetVolume();
+		iOldVolumeLevel = (UINT8)SpkrGetVolume();
 		LPBYTE mem = (LPBYTE)GameLink::AllocRAM(size);
 
 		// initialize the gamelink previous input to 0
@@ -261,7 +261,7 @@ void RemoteControlManager::getInput()
 		{
 			SpkrSetVolume(iVolNow, iVolMax);
 			MB_SetVolume(iVolNow, iVolMax);
-			iOldVolumeLevel = SpkrGetVolume();
+			iOldVolumeLevel = (UINT8)SpkrGetVolume();
 		}
 
 		// -- Mouse input
