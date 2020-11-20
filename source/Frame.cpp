@@ -27,20 +27,20 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include "StdAfx.h"
-#include <sys/stat.h>
 
-#include "Applewin.h"
+#include "Frame.h"
+#include "AppleWin.h"
 #include "CardManager.h"
 #include "CPU.h"
 #include "Disk.h"
 #include "DiskImage.h"
 #include "Harddisk.h"
-#include "Frame.h"
 #include "Keyboard.h"
 #include "Log.h"
 #include "Memory.h"
 #include "Mockingboard.h"
 #include "MouseInterface.h"
+#include "DirectInput.h"
 #include "NTSC.h"
 #include "ParallelPrinter.h"
 #include "Pravets.h"
@@ -57,6 +57,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "../resource/resource.h"
 #include "Configuration/PropertySheet.h"
 #include "Debugger/Debug.h"
+#if _MSC_VER <= 1500	// VS2008 only (cl.exe v15.00)
+#include <sys/stat.h>
+#endif
 
 //#define ENABLE_MENU 0
 #define DEBUG_KEY_MESSAGES 0

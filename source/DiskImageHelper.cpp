@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 
 #include "StdAfx.h"
+#include "DiskImageHelper.h"
+
 #include "Common.h"
 
 #include "zlib.h"
@@ -35,7 +37,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "CPU.h"
 #include "DiskImage.h"
-#include "DiskImageHelper.h"
 #include "Log.h"
 #include "Memory.h"
 #include <sstream>	// RIK -- Parse metadata of WOZ disks
@@ -1092,7 +1093,7 @@ public:
 			BYTE n = 0;
 			for (UINT j = 0; j < 8; j++)
 			{
-				if (rand() < ((RAND_MAX * 3) / 10))	// ~30% of buffer are 1 bits
+				if (rand() < RAND_THRESHOLD(3, 10))	// ~30% of buffer are 1 bits
 					n |= 1 << j;
 			}
 			m_pWOZEmptyTrack[i] = n;

@@ -55,7 +55,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				WholeProgramOptimization="true"
-				AdditionalIncludeDirectories="source\cpu;source\emulator;source\debugger;zlib;zip_lib;libyaml\include"
+				AdditionalIncludeDirectories="source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC"
 				StringPooling="true"
 				RuntimeLibrary="0"
@@ -156,7 +156,7 @@
 				Name="VCCLCompilerTool"
 				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="source\cpu;source\emulator;source\debugger;zlib;zip_lib;libyaml\include"
+				AdditionalIncludeDirectories="source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
@@ -227,11 +227,11 @@
 			Filter=".cpp"
 			>
 			<File
-				RelativePath=".\source\Applewin.cpp"
+				RelativePath=".\source\AppleWin.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\source\Applewin.h"
+				RelativePath=".\source\AppleWin.h"
 				>
 			</File>
 			<File
@@ -619,6 +619,14 @@
 				</File>
 				<File
 					RelativePath=".\source\CardManager.h"
+					>
+				</File>
+				<File
+					RelativePath=".\source\DirectInput.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\source\DirectInput.h"
 					>
 				</File>
 				<File

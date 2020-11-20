@@ -77,14 +77,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
+#include "Mockingboard.h"
 #include "SaveState_Structs_v1.h"
 
-#include "Applewin.h"
+#include "AppleWin.h"
 #include "CardManager.h"
 #include "CPU.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Mockingboard.h"
 #include "SoundCore.h"
 #include "SynchronousEventManager.h"
 #include "YamlHelper.h"
@@ -1826,8 +1826,7 @@ static BYTE __stdcall MB_Write(WORD PC, WORD nAddr, BYTE bWrite, BYTE nValue, UL
 		if(nMB != 0)	// Slot4 only
 			return 0;
 
-		int CS;
-
+		int CS = 0;
 		if (g_phasorMode == PH_Mockingboard)
 			CS = ( ( nAddr & 0x80 ) >> 7 ) + 1;							// 1 or 2
 		else if (g_phasorMode == PH_Phasor)
@@ -2403,7 +2402,7 @@ bool MB_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
 
 	for(UINT i=0; i<NUM_MB_UNITS; i++)
 	{
-		char szNum[2] = {'0'+char(i),0};
+		char szNum[2] = {char('0' + i), 0};
 		std::string unit = std::string(SS_YAML_KEY_MB_UNIT) + std::string(szNum);
 		if (!yamlLoadHelper.GetSubMap(unit))
 			throw std::string("Card: Expected key: ") + std::string(unit);
@@ -2552,7 +2551,7 @@ bool Phasor_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version
 
 	for(UINT i=0; i<NUM_PHASOR_UNITS; i++)
 	{
-		char szNum[2] = {'0'+char(i),0};
+		char szNum[2] = {char('0' + i), 0};
 		std::string unit = std::string(SS_YAML_KEY_MB_UNIT) + std::string(szNum);
 		if (!yamlLoadHelper.GetSubMap(unit))
 			throw std::string("Card: Expected key: ") + std::string(unit);
