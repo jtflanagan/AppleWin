@@ -41,7 +41,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Log.h"
 #include "Memory.h"
 #include <sstream>	// RIK -- Parse metadata of WOZ disks
-#include "Applewin.h"	// RIK -- g_programName
 #include "RemoteControl/RemoteControlManager.h"	// RIK -- send signature info
 #include "Interface.h"
 

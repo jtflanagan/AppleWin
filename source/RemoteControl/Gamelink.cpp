@@ -17,13 +17,16 @@
 //	- creates a running program signature with help from Signatures.cpp
 //	- calls Gamelink::In() and Gamelink::Out() to grab commands/keystrokes and send video & ram respectively
 
-#include <Windows.h>
-#include "Common.h"
 #include "StdAfx.h"
+#include <Windows.h>
+#include "Core.h"
+#include "Interface.h"
+#include "Common.h"
+#include "FrameBase.h"
 #include "Log.h"
 #include "Gamelink.h"
-#include "Applewin.h"
-#include "Frame.h"
+#include "Windows/AppleWin.h"
+#include "Windows/Win32Frame.h"
 
 //------------------------------------------------------------------------------
 // Local Definitions
@@ -230,20 +233,21 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 
 	if (strcmp(com, ":reset") == 0)
 	{
-		ProcessButtonClick(BTN_RUN, false);
+		PostMessage(GetFrame().g_hFrameWindow, WM_USER_BOOT, 0, 0);
+		//ProcessButtonClick(BTN_RUN);
 	}
 	else if (strcmp(com, ":pause") == 0)
 	{
 		LPARAM lparam = 1;
 		lparam = lparam | (LPARAM)(0x45 << 16);				// scancode for PAUSE
-		PostMessageW(g_hFrameWindow, WM_KEYDOWN, VK_PAUSE, lparam);
+		PostMessageW(GetFrame().g_hFrameWindow, WM_KEYDOWN, VK_PAUSE, lparam);
 		lparam = lparam | (LPARAM)(1 << 30);				// previous key state
 		lparam = lparam | (LPARAM)(1 << 31);				// transition state (1 for keyup)
-		PostMessageW(g_hFrameWindow, WM_KEYUP, VK_PAUSE, 0);
+		PostMessageW(GetFrame().g_hFrameWindow, WM_KEYUP, VK_PAUSE, 0);
 	}
 	else if (strcmp(com, ":shutdown") == 0)
 	{
-		PostMessageW(g_hFrameWindow, WM_DESTROY, 0, 0);
+		PostMessageW(GetFrame().g_hFrameWindow, WM_DESTROY, 0, 0);
 	}
 }
 

@@ -36,6 +36,8 @@ struct CmdLine
 		rgbCard = RGB_Videocard_e::Apple;
 		rgbCardForegroundColor = 15;
 		rgbCardBackgroundColor = 0;
+		bRemoteControlEnabled = true;
+		bRCTrackOnlyEnabled = true;
 
 		for (UINT i = 0; i < NUM_SLOTS; i++)
 		{
@@ -76,6 +78,8 @@ struct CmdLine
 	RGB_Videocard_e rgbCard;
 	int rgbCardForegroundColor;
 	int rgbCardBackgroundColor;
+	bool bRemoteControlEnabled;
+	bool bRCTrackOnlyEnabled;
 	std::string strCurrentDir;
 };
 

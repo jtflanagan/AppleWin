@@ -69,6 +69,7 @@ public:
 
 	HDC FrameGetDC();
 	void FrameReleaseDC();
+	void ProcessButtonClick(int button, bool bFromButtonUI = false);
 
 	bool	g_bScrollLock_FullSpeed;
 
@@ -92,7 +93,6 @@ private:
 	void DrawStatusArea(HDC passdc, int drawflags);
 	void Draw3dRect(HDC dc, int x1, int y1, int x2, int y2, BOOL out);
 	void DrawBitmapRect(HDC dc, int x, int y, LPRECT rect, HBITMAP bitmap);
-	void ProcessButtonClick(int button, bool bFromButtonUI = false);
 	bool ConfirmReboot(bool bFromButtonUI);
 	void ProcessDiskPopupMenu(HWND hwnd, POINT pt, const int iDrive);
 	void RelayEvent(UINT message, WPARAM wparam, LPARAM lparam);

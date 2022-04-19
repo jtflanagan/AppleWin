@@ -49,10 +49,15 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Windows/Win32Frame.h"
 #include "RGBMonitor.h"
 #include "NTSC.h"
+#include "RemoteControl/RemoteControlManager.h"	// RIK
 
 #include "Configuration/About.h"
 #include "Configuration/PropertySheet.h"
 #include "Tfe/tfe.h"
+
+std::string g_pProgramName = "Unknown";		// RIK -- Name of the emulated program
+std::string g_pProgramSig = "000-00000000";	// RIK -- Canonical signature of the emulated program using format: page-cnc32
+RemoteControlManager g_RemoteControlMgr;
 
 //=================================================
 

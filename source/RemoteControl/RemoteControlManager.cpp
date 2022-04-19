@@ -30,11 +30,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include "StdAfx.h"
-
-#include "Applewin.h"
 #include <Windows.h>		// to inject the incoming Gamelink inputs into Applewin
+#include "Windows/Win32Frame.h"
+#include "Windows/AppleWin.h"
 #include "Memory.h"
-#include "Frame.h"
+#include "FrameBase.h"
 #include "Log.h"
 #include "Video.h"
 #include "MouseInterface.h"	// for Gamelink in and out
@@ -77,7 +77,7 @@ struct Info_HDV {
 Info_HDV g_infoHdv = { std::string(UNKNOWN_VOLUME_NAME), 0 };
 
 UINT iCurrentTicks;						// Used to check the repeat interval
-UINT8 *pReorderedFramebufferbits = new UINT8[GetFrameBufferWidth() * GetFrameBufferHeight() * sizeof(bgra_t)]; // the frame realigned properly
+UINT8 *pReorderedFramebufferbits = new UINT8[GetVideo().GetFrameBufferWidth() * GetVideo().GetFrameBufferHeight() * sizeof(bgra_t)]; // the frame realigned properly
 UINT8 iOldVolumeLevel;
 static std::unordered_set<UINT8> exclusionSet;		// list of VK codes that will not be passed through to Applewin
 
@@ -231,14 +231,14 @@ void RemoteControlManager::getInput()
 {
 	if (
 		GameLink::GetGameLinkEnabled()
-		&& g_hFrameWindow != GetFocus()
+		&& GetFrame().g_hFrameWindow != GetFocus()
 		&& GameLink::In(&g_gamelink.input, &g_gamelink.audio)
 		) {
 #ifdef DEBUG
 		LogOutput("Mouse dX, dY, WPARAM: %0.2f %0.2f %02X\n", g_gamelink.input.mouse_dx, g_gamelink.input.mouse_dy, g_gamelink.input.mouse_btn);
 #endif DEBUG
 		// -- Audio input
-		UINT iVolMax = sg_PropertySheet.GetVolumeMax();
+		UINT iVolMax = GetPropertySheet().GetVolumeMax();
 		
 		UINT iVolNow;
 
@@ -364,7 +364,7 @@ void RemoteControlManager::getInput()
 				// It's not at all ideal, so we filter which keystrokes to pass in with a configurable exclusion list
 				if (!exclusionSet.count(iVK_Code))
 				{
-					PostMessageW(g_hFrameWindow, iKeyState, iVK_Code, lparam);
+					PostMessageW(GetFrame().g_hFrameWindow, iKeyState, iVK_Code, lparam);
 #ifdef DEBUG
 					LogOutput("SCANCODE, iVK, LPARAM: %04X, %04X, %04X\n", scancode, iVK_Code, lparam);
 #endif DEBUG
@@ -394,7 +394,7 @@ void RemoteControlManager::sendOutput(LPBITMAPINFO g_pFramebufferinfo, UINT8 *g_
 			return;
 		}
 
-		UINT fbSize = GetFrameBufferWidth() * GetFrameBufferHeight() * sizeof(bgra_t);
+		UINT fbSize = GetVideo().GetFrameBufferWidth() * GetVideo().GetFrameBufferHeight() * sizeof(bgra_t);
 		ZeroMemory(pReorderedFramebufferbits, fbSize);
 
 		if (g_pFramebufferbits != NULL)

@@ -3,6 +3,7 @@
 #include "Card.h"
 #include "Common.h"
 #include "RemoteControl/RemoteControlManager.h"
+#include <string>
 
 void LogFileTimeUntilFirstKeyReadReset(void);
 void LogFileTimeUntilFirstKeyRead(void);

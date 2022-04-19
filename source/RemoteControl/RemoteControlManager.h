@@ -17,10 +17,10 @@ public:
 	void updateRunningProgramInfo();
 	void setKeypressExclusionList(UINT8 exclusionList[], UINT8 length);
 
-	static bool RemoteControlManager::isRemoteControlEnabled();
-	static void RemoteControlManager::setRemoteControlEnabled(bool bEnabled);
-	static bool RemoteControlManager::isTrackOnlyEnabled();
-	static void RemoteControlManager::setTrackOnlyEnabled(bool bEnabled);
+	static bool isRemoteControlEnabled();
+	static void setRemoteControlEnabled(bool bEnabled);
+	static bool isTrackOnlyEnabled();
+	static void setTrackOnlyEnabled(bool bEnabled);
 
 	UINT const kMinRepeatInterval = 400;	// Minimum keypress repeat message interval in ms
 };

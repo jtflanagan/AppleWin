@@ -569,11 +569,11 @@ void YamlSaveHelper::SaveMemory(const LPBYTE pMemBase, const UINT uMemSize)
 	delete [] pLine;
 }
 
-void YamlSaveHelper::FileHdr(UINT version, const char hdrstring[255])
+void YamlSaveHelper::FileHdr(UINT version)
 {
 	fprintf(m_hFile, "%s:\n", SS_YAML_KEY_FILEHDR);
 	m_indent = 2;
-	SaveString(SS_YAML_KEY_TAG, hdrstring);
+	SaveString(SS_YAML_KEY_TAG, SS_YAML_VALUE_AWSS);
 	SaveInt(SS_YAML_KEY_VERSION, version);
 }
 
