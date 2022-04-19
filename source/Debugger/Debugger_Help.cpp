@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 
-#include "../AppleWin.h"
+#include "../Core.h"
 
 
 #define DEBUG_COLOR_CONSOLE 0
@@ -261,18 +261,18 @@ void Help_Operators()
 	ConsolePrintFormat( sText,"  Operators: (%sBreakpoint%s)"                   , CHC_USAGE, CHC_DEFAULT );
 
 	_tcscpy( sText, "    " );
-	_tcscat( sText, CHC_USAGE );
+	strcat( sText, CHC_USAGE );
 	int iBreakOp = 0;
 	for( iBreakOp = 0; iBreakOp < NUM_BREAKPOINT_OPERATORS; iBreakOp++ )
 	{
 		if ((iBreakOp >= PARAM_BP_LESS_EQUAL) &&
 			(iBreakOp <= PARAM_BP_GREATER_EQUAL))
 		{
-			_tcscat( sText, g_aBreakpointSymbols[ iBreakOp ] );
-			_tcscat( sText, " " );
+			strcat( sText, g_aBreakpointSymbols[ iBreakOp ] );
+			strcat( sText, " " );
 		}
 	}	
-	_tcscat( sText, CHC_DEFAULT );
+	strcat( sText, CHC_DEFAULT );
 	ConsolePrint( sText );
 }
 
@@ -335,7 +335,7 @@ void _ColorizeString(
 // pOperator is one of CHC_*
 void _ColorizeOperator(
 	char * & pDst, const char * & pSrc,
-	char * pOperator )
+	const char * pOperator )
 {
 	int nLen;
 	
@@ -571,8 +571,8 @@ Update_t CmdHelpSpecific (int nArgs)
 	int iArg;
 	char sText[ CONSOLE_WIDTH * 2 ];
 	char sTemp[ CONSOLE_WIDTH * 2 ];
-	ZeroMemory( sText, CONSOLE_WIDTH*2 );
-	ZeroMemory( sTemp, CONSOLE_WIDTH*2 );
+	memset( sText, 0, CONSOLE_WIDTH*2 );
+	memset( sTemp, 0, CONSOLE_WIDTH*2 );
 
 	if (! nArgs)
 	{
@@ -828,7 +828,7 @@ Update_t CmdHelpSpecific (int nArgs)
 		
 		if (pCommand)
 		{
-			char *pHelp = pCommand->pHelpSummary;
+			const char *pHelp = pCommand->pHelpSummary;
 			if (pHelp)
 			{
 				if (bCategory)

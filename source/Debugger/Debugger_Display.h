@@ -1,11 +1,5 @@
 #pragma once
 
-// use the new Debugger Font (Apple Font)
-#define USE_APPLE_FONT   1
-
-// Test Colors & Glyphs
-#define DEBUG_APPLE_FONT 0
-
 // Win32 Debugger Font
 
 	enum ConsoleFontSize_e
@@ -40,6 +34,9 @@
 
 	void FillBackground(long left, long top, long right, long bottom);
 
+	// Display ____________________________________________________________________
+	void UpdateDisplay(Update_t bUpdate);
+
 	int  PrintText       ( const char * pText, RECT & rRect );
 	int  PrintTextCursorX( const char * pText, RECT & rRect );
 	int  PrintTextCursorY( const char * pText, RECT & rRect );
@@ -52,16 +49,6 @@
 	void DrawConsoleInput     ();
 	void DrawConsoleLine      ( const conchar_t * pText, int y);
 	void DrawConsoleCursor    ();
-
-	int GetDisassemblyLine(  const WORD nOffset, DisasmLine_t & line_ );
-//		, int iOpcode, int iOpmode, int nOpbytes
-//		char *sAddress_, char *sOpCodes_,
-//		char *sTarget_, char *sTargetOffset_, int & nTargetOffset_, char *sTargetValue_,
-//		char * sImmediate_, char & nImmediate_, char *sBranch_ );
-	WORD DrawDisassemblyLine  ( int line, const WORD offset );
-	void FormatDisassemblyLine( const DisasmLine_t & line, char *sDisassembly_, const int nBufferSize );
-	void FormatOpcodeBytes    ( WORD nBaseAddress, DisasmLine_t & line_ );
-	void FormatNopcodeBytes   ( WORD nBaseAddress, DisasmLine_t & line_ );
 
 	//
 

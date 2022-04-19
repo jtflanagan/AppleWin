@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../AppleWin.h"
+#include "../Core.h"
 #include "../CardManager.h"
 #include "../CPU.h"
 #include "../DiskImage.h"	// Disk_Status_e
 #include "../Harddisk.h"	// HD_CardIsEnabled()
-#include "../Video.h"		// VideoRefreshRate_e, GetVideoRefreshRate()
 #include "../RemoteControl/RemoteControlManager.h"	// RIK
+#include "../Interface.h"	// VideoRefreshRate_e, GetVideoRefreshRate()
 
 class CConfigNeedingRestart
 {
@@ -16,7 +16,7 @@ public:
 		m_CpuType( GetMainCpu() ),
 		m_uSaveLoadStateMsg(0),
 		m_bEnableRemoteControl(RemoteControlManager::isRemoteControlEnabled()),	// RIK
-		m_videoRefreshRate( GetVideoRefreshRate() )
+		m_videoRefreshRate( GetVideo().GetVideoRefreshRate() )
 	{
 		m_bEnableHDD = HD_CardIsEnabled();
 		m_bEnableTheFreezesF8Rom = bEnableTheFreezesF8Rom;

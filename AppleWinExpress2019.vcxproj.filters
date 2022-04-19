@@ -1,9 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="source\AppleWin.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="source\6821.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
@@ -51,9 +48,6 @@
     </ClCompile>
     <ClCompile Include="source\Debugger\Debugger_Symbols.cpp">
       <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Frame.cpp">
-      <Filter>Source Files\Video</Filter>
     </ClCompile>
     <ClCompile Include="source\Disk.cpp">
       <Filter>Source Files\Disk</Filter>
@@ -148,13 +142,13 @@
     <ClCompile Include="source\Tape.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
-    <ClCompile Include="source\Tfe\Tfe.cpp">
+    <ClCompile Include="source\Tfe\tfe.cpp">
       <Filter>Source Files\Uthernet</Filter>
     </ClCompile>
-    <ClCompile Include="source\Tfe\Tfearch.cpp">
+    <ClCompile Include="source\Tfe\tfearch.cpp">
       <Filter>Source Files\Uthernet</Filter>
     </ClCompile>
-    <ClCompile Include="source\Tfe\Tfesupp.cpp">
+    <ClCompile Include="source\Tfe\tfesupp.cpp">
       <Filter>Source Files\Uthernet</Filter>
     </ClCompile>
     <ClCompile Include="source\Tfe\Uilib.cpp">
@@ -202,7 +196,31 @@
     <ClCompile Include="source\SynchronousEventManager.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
-    <ClCompile Include="source\DirectInput.cpp">
+    <ClCompile Include="source\Windows\DirectInput.cpp">
+      <Filter>Source Files\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Windows\WinFrame.cpp">
+      <Filter>Source Files\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Core.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Utilities.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Windows\AppleWin.cpp">
+      <Filter>Source Files\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="source\CmdLine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\FrameBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Windows\Win32Frame.cpp">
+      <Filter>Source Files\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SSI263.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
     <ClCompile Include="source\RemoteControl\Gamelink.cpp">
@@ -211,15 +229,15 @@
     <ClCompile Include="source\RemoteControl\RemoteControlManager.cpp">
       <Filter>Source Files\RemoteControl</Filter>
     </ClCompile>
+    <ClCompile Include="source\Debugger\Debugger_Disassembler.cpp">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Debugger\Debugger_Win32.cpp">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="source\AppleWin.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\CommonVICE\6510core.h">
-      <Filter>Source Files\CommonVICE</Filter>
-    </ClInclude>
-    <ClInclude Include="source\CommonVICE\alarm.h">
       <Filter>Source Files\CommonVICE</Filter>
     </ClInclude>
     <ClInclude Include="source\6821.h">
@@ -287,9 +305,6 @@
     </ClInclude>
     <ClInclude Include="source\Debugger\Debugger_Symbols.h">
       <Filter>Source Files\Debugger</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Frame.h">
-      <Filter>Source Files\Video</Filter>
     </ClInclude>
     <ClInclude Include="source\Disk.h">
       <Filter>Source Files\Disk</Filter>
@@ -420,13 +435,13 @@
     <ClInclude Include="source\Tape.h">
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
-    <ClInclude Include="source\Tfe\Tfe.h">
+    <ClInclude Include="source\Tfe\tfe.h">
       <Filter>Source Files\Uthernet</Filter>
     </ClInclude>
-    <ClInclude Include="source\Tfe\Tfearch.h">
+    <ClInclude Include="source\Tfe\tfearch.h">
       <Filter>Source Files\Uthernet</Filter>
     </ClInclude>
-    <ClInclude Include="source\Tfe\Tfesupp.h">
+    <ClInclude Include="source\Tfe\tfesupp.h">
       <Filter>Source Files\Uthernet</Filter>
     </ClInclude>
     <ClInclude Include="source\Tfe\Uilib.h">
@@ -498,7 +513,31 @@
     <ClInclude Include="source\SynchronousEventManager.h">
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
-    <ClInclude Include="source\DirectInput.h">
+    <ClInclude Include="source\Windows\DirectInput.h">
+      <Filter>Source Files\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Core.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Utilities.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Windows\AppleWin.h">
+      <Filter>Source Files\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CmdLine.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Interface.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\FrameBase.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Windows\Win32Frame.h">
+      <Filter>Source Files\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SSI263.h">
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
     <ClInclude Include="source\RemoteControl\Gamelink.h">
@@ -506,6 +545,12 @@
     </ClInclude>
     <ClInclude Include="source\RemoteControl\RemoteControlManager.h">
       <Filter>Source Files\RemoteControl</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Debugger\Debugger_Disassembler.h">
+      <Filter>Source Files\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Debugger\Debugger_Win32.h">
+      <Filter>Source Files\Debugger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -749,6 +794,9 @@
     </Filter>
     <Filter Include="Source Files\RemoteControl">
       <UniqueIdentifier>{95126897-25dc-4245-9e63-20a0f09db967}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Windows">
+      <UniqueIdentifier>{95d0abc3-4007-4eb0-8222-4579b565de23}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

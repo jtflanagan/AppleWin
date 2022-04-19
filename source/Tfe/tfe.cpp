@@ -392,8 +392,8 @@ void tfe_debug_output_pp( void )
 /* ------------------------------------------------------------------------- */
 /*    initialization and deinitialization functions                          */
 
-BYTE __stdcall TfeIoCxxx (WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
-BYTE __stdcall TfeIo (WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
+static BYTE __stdcall TfeIoCxxx (WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
+static BYTE __stdcall TfeIo (WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
 
 void tfe_reset(void)
 {
@@ -505,7 +505,7 @@ int tfe_activate_i(void)
 
 #ifdef TFE_DEBUG_INIT
     if(g_fh) fprintf(g_fh, "tfe_activate: Allocated memory successfully.\n");
-    if(g_fh) fprintf(g_fh, "\ttfe at $%08X, tfe_packetpage at $%08X\n", uintptr_t(tfe), uintptr_t(tfe_packetpage) );
+    if(g_fh) fprintf(g_fh, "\ttfe at $%08llX, tfe_packetpage at $%08llX\n", (unsigned long long)uintptr_t(tfe), (unsigned long long)uintptr_t(tfe_packetpage) );
 #endif
 
 #ifdef DOS_TFE
@@ -534,8 +534,6 @@ int tfe_deactivate_i(void)
 #ifdef TFE_DEBUG
     if(g_fh) fprintf( g_fh, "tfe_deactivate_i()." );
 #endif
-
-    assert(tfe && tfe_packetpage);
 
     tfe_arch_deactivate();
 
@@ -602,8 +600,8 @@ void tfe_shutdown(void)
     if (tfe)
         tfe_deactivate();
 
-    if (tfe_interface != NULL)
-        lib_free(tfe_interface);
+    lib_free(tfe_interface);
+    tfe_interface = NULL;
 }
 
 
@@ -1361,7 +1359,7 @@ int set_tfe_enabled(void *v, void *param)
 {
     if (!tfe_cannot_use) {
 
-        if (!(int)v) {
+        if (!v) {
             /* TFE should be deactived */
             if (tfe_enabled) {
                 tfe_enabled = 0;

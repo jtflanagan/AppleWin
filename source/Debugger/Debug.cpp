@@ -33,17 +33,18 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 #include "DebugDefs.h"
+#include "Debugger_Win32.h"
 
-#include "../AppleWin.h"
+#include "../Windows/AppleWin.h"
+#include "../Core.h"
+#include "../Interface.h"
 #include "../CardManager.h"
 #include "../CPU.h"
 #include "../Disk.h"
-#include "../Frame.h"
 #include "../Keyboard.h"
 #include "../Memory.h"
 #include "../NTSC.h"
 #include "../SoundCore.h"	// SoundCore_SetFade()
-#include "../Video.h"
 
 //	#define DEBUG_COMMAND_HELP  1
 //	#define DEBUG_ASM_HASH 1
@@ -339,9 +340,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 // Drawing
 	static	void _CmdColorGet ( const int iScheme, const int iColor );
 
-// Font
-	static	void _UpdateWindowFontHeights (int nFontHeight);
-
 // Source Level Debugging
 	static	bool BufferAssemblyListing ( const std::string & pFileName );
 	static	bool ParseAssemblyListing ( bool bBytesToMemory, bool bAddSymbols );
@@ -360,20 +358,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	Update_t _CmdWindowViewCommon (int iNewWindow);
 
 // Utility
-	char FormatCharTxtCtrl ( const BYTE b, bool *pWasCtrl_ );
-	char FormatCharTxtAsci ( const BYTE b, bool *pWasAsci_ );
-	char FormatCharTxtHigh ( const BYTE b, bool *pWasHi_ );
-	char FormatChar4Font ( const BYTE b, bool *pWasHi_, bool *pWasLo_ );
-
 	void _CursorMoveDownAligned( int nDelta );
 	void _CursorMoveUpAligned( int nDelta );
-
-	void DisasmCalcTopFromCurAddress( bool bUpdateTop = true );
-	void DisasmCalcCurFromTopAddress();
-	void DisasmCalcBotFromTopAddress();
-	void DisasmCalcTopBotAddress ();
-	WORD DisasmCalcAddressFromLines( WORD iAddress, int nLines );
-
 
 // DebugVideoMode _____________________________________________________________
 
@@ -674,7 +660,7 @@ Update_t CmdBookmarkLoad (int nArgs)
 	//	strcat( sMiniFileName, ".aws" ); // HACK: MAGIC STRING
 
 //		_tcscpy(sFileName, g_sCurrentDir); // 
-//		_tcscat(sFileName, sMiniFileName);
+//		strcat(sFileName, sMiniFileName);
 	}
 
 	return UPDATE_CONSOLE_DISPLAY;
@@ -751,8 +737,8 @@ Update_t CmdBenchmarkStop (int nArgs)
 	g_bBenchmarking = false;
 	DebugEnd();
 	
-	FrameRefreshStatus(DRAW_TITLE);
-	VideoRedrawScreen();
+	GetFrame().FrameRefreshStatus(DRAW_TITLE | DRAW_DISK_STATUS);
+	GetFrame().VideoRedrawScreen();
 	DWORD currtime = GetTickCount();
 	while ((extbench = GetTickCount()) != currtime)
 		; // intentional busy-waiting
@@ -1961,7 +1947,7 @@ static Update_t CmdGo (int nArgs, const bool bFullSpeed)
 	g_bGoCmd_ReinitFlag = true;
 
 	g_nAppMode = MODE_STEPPING;
-	FrameRefreshStatus(DRAW_TITLE);
+	GetFrame().FrameRefreshStatus(DRAW_TITLE | DRAW_DISK_STATUS);
 
 	SoundCore_SetFade(FADE_IN);
 
@@ -2030,7 +2016,7 @@ Update_t CmdTrace (int nArgs)
 	g_nDebugStepStart = regs.pc;
 	g_nDebugStepUntil = -1;
 	g_nAppMode = MODE_STEPPING;
-	FrameRefreshStatus(DRAW_TITLE);
+	GetFrame().FrameRefreshStatus(DRAW_TITLE | DRAW_DISK_STATUS);
 	DebugContinueStepping(true);
 
 	return UPDATE_ALL; // TODO: Verify // 0
@@ -2090,7 +2076,7 @@ Update_t CmdTraceLine (int nArgs)
 	g_nDebugStepUntil = -1;
 
 	g_nAppMode = MODE_STEPPING;
-	FrameRefreshStatus(DRAW_TITLE);
+	GetFrame().FrameRefreshStatus(DRAW_TITLE | DRAW_DISK_STATUS);
 	DebugContinueStepping(true);
 
 	return UPDATE_ALL; // TODO: Verify // 0
@@ -2224,7 +2210,7 @@ void _CmdColorGet( const int iScheme, const int iColor )
 	{
 		TCHAR sText[ CONSOLE_WIDTH ];
 		wsprintf( sText, "Color: %d\nOut of range!", iColor );
-		MessageBox( g_hFrameWindow, sText, TEXT("ERROR"), MB_OK );
+		GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
 	}
 }
 
@@ -2633,453 +2619,7 @@ Update_t CmdConfigDisasm( int nArgs )
 	return UPDATE_CONSOLE_DISPLAY | UPDATE_DISASM;
 }
 
-// Config - Font __________________________________________________________________________________
-
-
-//===========================================================================
-Update_t CmdConfigFontLoad( int nArgs )
-{
-	return UPDATE_CONSOLE_DISPLAY;
-}
-
-
-//===========================================================================
-Update_t CmdConfigFontSave( int nArgs )
-{
-	return UPDATE_CONSOLE_DISPLAY;
-}
-
-
-//===========================================================================
-Update_t CmdConfigFontMode( int nArgs )
-{
-	if (nArgs != 2)
-		return Help_Arg_1( CMD_CONFIG_FONT );
-
-	int nMode = g_aArgs[ 2 ].nValue;
-
-	if ((nMode < 0) || (nMode >= NUM_FONT_SPACING))
-		return Help_Arg_1( CMD_CONFIG_FONT );
-		
-	g_iFontSpacing = nMode;
-	_UpdateWindowFontHeights( g_aFontConfig[ FONT_DISASM_DEFAULT ]._nFontHeight );
-
-	return UPDATE_CONSOLE_DISPLAY | UPDATE_DISASM;
-}
-
-
-//===========================================================================
-Update_t CmdConfigFont (int nArgs)
-{
-	int iArg;
-
-	if (! nArgs)
-		return CmdConfigGetFont( nArgs );
-	else
-	if (nArgs <= 2) // nArgs
-	{
-		iArg = 1;
-
-		// FONT * is undocumented, like VERSION *
-		if ((! _tcscmp( g_aArgs[ iArg ].sArg, g_aParameters[ PARAM_WILDSTAR        ].m_sName )) ||
-			(! _tcscmp( g_aArgs[ iArg ].sArg, g_aParameters[ PARAM_MEM_SEARCH_WILD ].m_sName )) )
-		{
-			TCHAR sText[ CONSOLE_WIDTH ];
-			ConsoleBufferPushFormat( sText, "Lines: %d  Font Px: %d  Line Px: %d"
-				, g_nDisasmDisplayLines
-				, g_aFontConfig[ FONT_DISASM_DEFAULT ]._nFontHeight
-				, g_aFontConfig[ FONT_DISASM_DEFAULT ]._nLineHeight );
-			ConsoleBufferToDisplay();
-			return UPDATE_CONSOLE_DISPLAY;
-		}
-
-		int iFound;
-		int nFound;
-		
-		nFound = FindParam( g_aArgs[iArg].sArg, MATCH_EXACT, iFound, _PARAM_GENERAL_BEGIN, _PARAM_GENERAL_END );
-		if (nFound)
-		{
-			switch( iFound )
-			{
-				case PARAM_LOAD:
-					return CmdConfigFontLoad( nArgs );
-					break;
-				case PARAM_SAVE:
-					return CmdConfigFontSave( nArgs );
-					break;
-				// TODO: FONT SIZE #
-				// TODO: AA {ON|OFF}
-				default:
-					break;		
-			}
-		}
-
-		nFound = FindParam( g_aArgs[iArg].sArg, MATCH_EXACT, iFound, _PARAM_FONT_BEGIN, _PARAM_FONT_END );
-		if (nFound)
-		{
-			if (iFound == PARAM_FONT_MODE)
-				return CmdConfigFontMode( nArgs );
-		}
-
-		return CmdConfigSetFont( nArgs );
-	}
-	
-	return Help_Arg_1( CMD_CONFIG_FONT );
-}
-
-
-// Only for FONT_DISASM_DEFAULT !
-//===========================================================================
-void _UpdateWindowFontHeights( int nFontHeight )
-{
-	if (nFontHeight)
-	{
-		int nConsoleTopY = GetConsoleTopPixels( g_nConsoleDisplayLines );
-
-		int nHeight = 0;
-
-		if (g_iFontSpacing == FONT_SPACING_CLASSIC)
-		{
-			nHeight = nFontHeight + 1;
-			g_nDisasmDisplayLines = nConsoleTopY / nHeight;
-		}
-		else
-		if (g_iFontSpacing == FONT_SPACING_CLEAN)
-		{		
-			nHeight = nFontHeight;
-			g_nDisasmDisplayLines = nConsoleTopY / nHeight;
-		}
-		else
-		if (g_iFontSpacing == FONT_SPACING_COMPRESSED)
-		{
-			nHeight = nFontHeight - 1;
-			g_nDisasmDisplayLines = (nConsoleTopY + nHeight) / nHeight; // Ceil()
-		}
-
-		g_aFontConfig[ FONT_DISASM_DEFAULT ]._nLineHeight = nHeight;
-		
-//		int nHeightOptimal = (nHeight0 + nHeight1) / 2;
-//		int nLinesOptimal = nConsoleTopY / nHeightOptimal;
-//		g_nDisasmDisplayLines = nLinesOptimal;
-
-		WindowUpdateSizes();
-	}
-}
-
-//===========================================================================
-bool _CmdConfigFont ( int iFont, LPCSTR pFontName, int iPitchFamily, int nFontHeight )
-{
-	bool bStatus = false;
-	HFONT         hFont = (HFONT) 0;
-	FontConfig_t *pFont = NULL;
-
-	if (iFont < NUM_FONTS)
-		pFont = & g_aFontConfig[ iFont ];
-	else
-		return bStatus;
-
-	if (pFontName)
-	{	
-//		int nFontHeight = g_nFontHeight - 1;
-
-		int bAntiAlias = (nFontHeight < 14) ? DEFAULT_QUALITY : ANTIALIASED_QUALITY;
-
-		// Try allow new font
-		hFont = CreateFont(
-			nFontHeight
-			, 0 // Width
-			, 0 // Escapement
-			, 0 // Orientatin
-			, FW_MEDIUM // Weight
-			, 0 // Italic
-			, 0 // Underline
-			, 0 // Strike Out
-			, DEFAULT_CHARSET // OEM_CHARSET
-			, OUT_DEFAULT_PRECIS
-			, CLIP_DEFAULT_PRECIS
-			, bAntiAlias // ANTIALIASED_QUALITY // DEFAULT_QUALITY
-			, iPitchFamily // HACK: MAGIC #: 4
-			, pFontName );
-
-		if (hFont)
-		{
-			if (iFont == FONT_DISASM_DEFAULT)
-				_UpdateWindowFontHeights( nFontHeight );
-
-			_tcsncpy( pFont->_sFontName, pFontName, MAX_FONT_NAME-1 );
-			pFont->_sFontName[ MAX_FONT_NAME-1 ] = 0;
-
-			HDC hDC = FrameGetDC();
-
-			TEXTMETRIC tm;
-			GetTextMetrics(hDC, &tm);
-
-			SIZE  size;
-			TCHAR sText[] = "W";
-			int   nLen = 1;
-
-			int nFontWidthAvg;
-			int nFontWidthMax;
-
-//			if (! (tm.tmPitchAndFamily & TMPF_FIXED_PITCH)) // Windows has this bitflag reversed!
-//			{	// Proportional font?
-//				bool bStop = true;
-//			}
-
-			// GetCharWidth32() doesn't work with TrueType Fonts
-			if (GetTextExtentPoint32( hDC, sText, nLen,  &size ))
-			{
-				nFontWidthAvg = tm.tmAveCharWidth;
-				nFontWidthMax = size.cx;
-			}
-			else
-			{
-				//  Font Name     Avg Max  "W"
-				//  Arial           7   8   11
-				//  Courier         5  32   11
-				//  Courier New     7  14   
-				nFontWidthAvg = tm.tmAveCharWidth;
-				nFontWidthMax = tm.tmMaxCharWidth;
-			}
-
-			if (! nFontWidthAvg)
-			{
-				nFontWidthAvg = 7;
-				nFontWidthMax = 7;
-			}
-
-			FrameReleaseDC();
-
-//			DeleteObject( g_hFontDisasm );		
-//			g_hFontDisasm = hFont;
-			pFont->_hFont = hFont;
-
-			pFont->_nFontWidthAvg = nFontWidthAvg;
-			pFont->_nFontWidthMax = nFontWidthMax;
-			pFont->_nFontHeight = nFontHeight;
-
-			bStatus = true;
-		}
-	}
-	return bStatus;
-}
-
-
-//===========================================================================
-Update_t CmdConfigSetFont (int nArgs)
-{
-#if OLD_FONT
-	HFONT  hFont = (HFONT) 0;
-	TCHAR *pFontName = NULL;
-	int    nHeight = g_nFontHeight;
-	int    iFontTarget = FONT_DISASM_DEFAULT;
-	int    iFontPitch  = FIXED_PITCH   | FF_MODERN;
-//	int    iFontMode   = 
-	bool   bHaveTarget = false;
-	bool   bHaveFont = false;
-		
-	if (! nArgs)
-	{ // reset to defaut font
-		pFontName = g_sFontNameDefault;
-	}
-	else
-	if (nArgs <= 3)
-	{
-		int iArg = 1;
-		pFontName = g_aArgs[1].sArg;
-
-		// [DISASM|INFO|CONSOLE] "FontName" [#]
-		// "FontName" can be either arg 1 or 2
-
-		int iFound;
-		int nFound = FindParam( g_aArgs[iArg].sArg, MATCH_EXACT, iFound, _PARAM_WINDOW_BEGIN, _PARAM_WINDOW_END );
-		if (nFound)
-		{
-			switch( iFound )
-			{
-				case PARAM_DISASM : iFontTarget = FONT_DISASM_DEFAULT; iFontPitch = FIXED_PITCH   | FF_MODERN    ; bHaveTarget = true; break;
-				case PARAM_INFO   : iFontTarget = FONT_INFO          ; iFontPitch = FIXED_PITCH   | FF_MODERN    ; bHaveTarget = true; break;
-				case PARAM_CONSOLE: iFontTarget = FONT_CONSOLE       ; iFontPitch = DEFAULT_PITCH | FF_DECORATIVE; bHaveTarget = true; break;
-				default:
-					if (g_aArgs[2].bType != TOKEN_QUOTE_DOUBLE) 
-						return Help_Arg_1( CMD_CONFIG_FONT );
-					break;
-			}
-			if (bHaveTarget)
-			{
-				pFontName = g_aArgs[2].sArg;
-			}
-		}
-		else		
-		if (nArgs == 2)
-		{
-			nHeight = atoi(g_aArgs[2].sArg );
-			if ((nHeight < 6) || (nHeight > 36))
-				nHeight = g_nFontHeight;			
-		}	
-	}
-	else
-	{
-		return Help_Arg_1( CMD_CONFIG_FONT );
-	}
-
-	if (! _CmdConfigFont( iFontTarget, pFontName, iFontPitch, nHeight ))
-	{
-	}
-#endif
-	return UPDATE_ALL;
-}
-
-//===========================================================================
-Update_t CmdConfigGetFont (int nArgs)
-{
-	if (! nArgs)
-	{
-		for (int iFont = 0; iFont < NUM_FONTS; iFont++ )
-		{
-			TCHAR sText[ CONSOLE_WIDTH ] = TEXT("");
-			ConsoleBufferPushFormat( sText, "  Font: %-20s  A:%2d  M:%2d",
-//				g_sFontNameCustom, g_nFontWidthAvg, g_nFontWidthMax );
-				g_aFontConfig[ iFont ]._sFontName,
-				g_aFontConfig[ iFont ]._nFontWidthAvg,
-				g_aFontConfig[ iFont ]._nFontWidthMax );
-		}
-		return ConsoleUpdate();
-	}
-
-	return UPDATE_CONSOLE_DISPLAY;
-}
-
-
-
 // Cursor _________________________________________________________________________________________
-
-// Given an Address, and Line to display it on
-// Calculate the address of the top and bottom lines
-// @param bUpdateCur
-// true  = Update Cur based on Top
-// false = Update Top & Bot based on Cur
-//===========================================================================
-void DisasmCalcTopFromCurAddress( bool bUpdateTop )
-{
-	int nLen = ((g_nDisasmWinHeight - g_nDisasmCurLine) * 3); // max 3 opcodes/instruction, is our search window
-
-	// Look for a start address that when disassembled,
-	// will have the cursor on the specified line and address
-	int iTop = g_nDisasmCurAddress - nLen;
-	int iCur = g_nDisasmCurAddress;
-
-	g_bDisasmCurBad = false;
-	
-	bool bFound = false;
-	while (iTop <= iCur)
-	{
-		WORD iAddress = iTop;
-//		int iOpcode;
-		int iOpmode;
-		int nOpbytes;
-
-		for( int iLine = 0; iLine <= nLen; iLine++ ) // min 1 opcode/instruction
-		{
-// a.
-			_6502_GetOpmodeOpbyte( iAddress, iOpmode, nOpbytes );
-// b.
-//			_6502_GetOpcodeOpmodeOpbyte( iOpcode, iOpmode, nOpbytes );
-
-			if (iLine == g_nDisasmCurLine) // && (iAddress == g_nDisasmCurAddress))
-			{
-				if (iAddress == g_nDisasmCurAddress)
-// b.
-//					&& (iOpmode != AM_1) &&
-//					&& (iOpmode != AM_2) &&
-//					&& (iOpmode != AM_3) &&
-//					&& _6502_IsOpcodeValid( iOpcode))
-				{
-					g_nDisasmTopAddress = iTop;
-					bFound = true;
-					break;
-				}
-			}
-
-			// .20 Fixed: DisasmCalcTopFromCurAddress()
-			//if ((eMode >= AM_1) && (eMode <= AM_3))
-#if 0 // _DEBUG
-			TCHAR sText[ CONSOLE_WIDTH ];
-			wsprintf( sText, "%04X : %d bytes\n", iAddress, nOpbytes );
-			OutputDebugString( sText );
-#endif
-			iAddress += nOpbytes;
-		}
-		if (bFound)
-		{
-			break;
-		}
-		iTop++;
-	}
-
-	if (! bFound)
-	{
-		// Well, we're up the creek.
-		// There is no (valid) solution!
-		// Basically, there is no address, that when disassembled,
-		// will put our Address on the cursor Line!
-		// So, like typical game programming, when we don't like the solution, change the problem!
-//		if (bUpdateTop)
-			g_nDisasmTopAddress = g_nDisasmCurAddress;
-
-		g_bDisasmCurBad = true; // Bad Disassembler, no opcode for you!
-
-		// We reall should move the cursor line to the top for one instruction.
-		// Moving the cursor line around is not really a good idea, since we're breaking consistency paradigm for the user.
-		// g_nDisasmCurLine = 0;
-#if 0 // _DEBUG
-			TCHAR sText[ CONSOLE_WIDTH * 2 ];
-			sprintf( sText, TEXT("DisasmCalcTopFromCurAddress()\n"
-				"\tTop: %04X\n"
-				"\tLen: %04X\n"
-				"\tMissed: %04X"),
-				g_nDisasmCurAddress - nLen, nLen, g_nDisasmCurAddress );
-			MessageBox( g_hFrameWindow, sText, "ERROR", MB_OK );
-#endif
-	}
-}
-
-
-//===========================================================================
-WORD DisasmCalcAddressFromLines( WORD iAddress, int nLines )
-{
-	while (nLines-- > 0)
-	{
-		int iOpmode;
-		int nOpbytes;
-		_6502_GetOpmodeOpbyte( iAddress, iOpmode, nOpbytes );
-		iAddress += nOpbytes;
-	}
-	return iAddress;
-}
-
-
-//===========================================================================
-void DisasmCalcCurFromTopAddress()
-{
-	g_nDisasmCurAddress = DisasmCalcAddressFromLines( g_nDisasmTopAddress, g_nDisasmCurLine );
-}
-
-
-//===========================================================================
-void DisasmCalcBotFromTopAddress( )
-{
-	g_nDisasmBotAddress = DisasmCalcAddressFromLines( g_nDisasmTopAddress, g_nDisasmWinHeight );
-}
-
-
-//===========================================================================
-void DisasmCalcTopBotAddress ()
-{
-	DisasmCalcTopFromCurAddress();
-	DisasmCalcBotFromTopAddress();
-}
-
 
 //===========================================================================
 Update_t CmdCursorFollowTarget ( int nArgs )
@@ -3770,7 +3310,7 @@ Update_t CmdDisk ( int nArgs)
 			return HelpLastCommand();
 
 		diskCard.EjectDisk( iDrive );
-		FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES);
+		GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES | DRAW_DISK_STATUS);
 	}
 	else
 	if (iParam == PARAM_DISK_PROTECT)
@@ -3784,7 +3324,7 @@ Update_t CmdDisk ( int nArgs)
 			bProtect = g_aArgs[ 3 ].nValue ? true : false;
 
 		diskCard.SetProtect( iDrive, bProtect );
-		FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES);
+		GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES | DRAW_DISK_STATUS);
 	}
 	else
 	{
@@ -3795,7 +3335,7 @@ Update_t CmdDisk ( int nArgs)
 
 		// DISK # "Diskname"
 		diskCard.InsertDisk( iDrive, pDiskName, IMAGE_FORCE_WRITE_PROTECTED, IMAGE_DONT_CREATE );
-		FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES);
+		GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES | DRAW_DISK_STATUS);
 	}
 
 	return UPDATE_CONSOLE_DISPLAY;
@@ -4138,7 +3678,6 @@ Update_t CmdConfigSetDebugDir (int nArgs)
 	if ( nArgs == 0 )
 		return CmdConfigGetDebugDir(0);
 
-#if _WIN32
 	// http://msdn.microsoft.com/en-us/library/aa365530(VS.85).aspx
 
 	// TODO: Support paths prefixed with "\\?\" (for long/unicode pathnames)
@@ -4170,9 +3709,6 @@ Update_t CmdConfigSetDebugDir (int nArgs)
 
 	if ( SetCurrentImageDir( sPath ) )
 		nArgs = 0; // intentional fall into
-#else
-	#error "Need chdir() implemented"
-#endif
 
 	return CmdConfigGetDebugDir(0);		// Show the new PWD
 }
@@ -4253,7 +3789,7 @@ Update_t CmdMemoryLoad (int nArgs)
 		{
 			_tcscpy( g_sMemoryLoadSaveFileName, g_aArgs[ 1 ].sArg );
 		}
-		_tcscat( sLoadSaveFilePath, g_sMemoryLoadSaveFileName );
+		strcat( sLoadSaveFilePath, g_sMemoryLoadSaveFileName );
 		
 		FILE *hFile = fopen( sLoadSaveFilePath, "rb" );
 		if (hFile)
@@ -4365,7 +3901,7 @@ Update_t CmdMemoryLoad (int nArgs)
 
 	struct KnownFileType_t
 	{
-		char *pExtension;
+		const char *pExtension;
 		int   nAddress;
 		int   nLength;
 	};
@@ -4632,7 +4168,7 @@ Update_t CmdMemorySave (int nArgs)
 			{
 				_tcscpy( g_sMemoryLoadSaveFileName, g_aArgs[ 1 ].sArg );
 			}
-			_tcscat( sLoadSaveFilePath, g_sMemoryLoadSaveFileName );
+			strcat( sLoadSaveFilePath, g_sMemoryLoadSaveFileName );
 
 //				if (nArgs == 2)
 			{
@@ -4939,7 +4475,7 @@ size_t Util_GetTextScreen ( char* &pText_ )
 	g_nTextScreen = 0;
 	memset( pBeg, 0, sizeof( g_aTextScreen ) );
 
-	unsigned int uBank2 = VideoGetSWPAGE2() ? 1 : 0;
+	unsigned int uBank2 = GetVideo().VideoGetSWPAGE2() ? 1 : 0;
 	LPBYTE g_pTextBank1  = MemGetAuxPtr (0x400 << uBank2);
 	LPBYTE g_pTextBank0  = MemGetMainPtr(0x400 << uBank2);
 
@@ -4952,7 +4488,7 @@ size_t Util_GetTextScreen ( char* &pText_ )
 		{
 			char c; // TODO: FormatCharTxtCtrl() ?
 
-			if ( VideoGetSW80COL() )
+			if ( GetVideo().VideoGetSW80COL() )
 			{ // AUX
 				c = g_pTextBank1[ nAddressStart ] & 0x7F;
 				c = RemapChar(c);
@@ -4980,20 +4516,6 @@ size_t Util_GetTextScreen ( char* &pText_ )
 	return g_nTextScreen;
 }
 
-void Util_CopyTextToClipboard ( const size_t nSize, const char *pText )
-{
-	HGLOBAL hMem =  GlobalAlloc(GMEM_MOVEABLE, nSize + 1 );
-	memcpy( GlobalLock(hMem), pText, nSize + 1 );
-	GlobalUnlock( hMem );
-
-	OpenClipboard(0);
-		EmptyClipboard();
-		SetClipboardData( CF_TEXT, hMem );
-	CloseClipboard();
-
-	// GlobalFree() ??
-}
-
 //===========================================================================
 Update_t CmdNTSC (int nArgs)
 {
@@ -5002,7 +4524,7 @@ Update_t CmdNTSC (int nArgs)
 
 	struct KnownFileType_t
 	{
-		char *pExtension;
+		const char *pExtension;
 	};
 
 	enum KnownFileType_e
@@ -5029,9 +4551,9 @@ Update_t CmdNTSC (int nArgs)
 	assert( (nFileType == NUM_FILE_TYPES) );
 #endif
 
-	char *pFileName = (nArgs > 1) ? g_aArgs[ 2 ].sArg : "";
+	const char *pFileName = (nArgs > 1) ? g_aArgs[ 2 ].sArg : "";
 	int   nLen = strlen( pFileName );
-	char *pEnd = pFileName + nLen - 1;
+	const char *pEnd = pFileName + nLen - 1;
 	while( pEnd > pFileName )
 	{
 		if( *pEnd == '.' )
@@ -5429,7 +4951,7 @@ Update_t CmdNTSC (int nArgs)
 			}
 	};
 
-	bool bColorTV = (g_eVideoType == VT_COLOR_TV);
+	bool bColorTV = (GetVideo().GetVideoType() == VT_COLOR_TV);
 
 	uint32_t* pChromaTable = NTSC_VideoGetChromaTable( false, bColorTV );
 	char aStatusText[ CONSOLE_WIDTH*2 ] = "Loaded";
@@ -5464,7 +4986,7 @@ Update_t CmdNTSC (int nArgs)
 
 					// Write BMP header
 					WinBmpHeader_t bmp, *pBmp = &bmp;
-					Video_SetBitmapHeader( pBmp, 64, 256, 32 );
+					GetVideo().Video_SetBitmapHeader( pBmp, 64, 256, 32 );
 					fwrite( pBmp, sizeof( WinBmpHeader_t ), 1, pFile );
 				}
 				else
@@ -5555,7 +5077,7 @@ Update_t CmdNTSC (int nArgs)
 					}
 
 
-				size_t nRead = fread( pSwizzled, g_nChromaSize, 1, pFile );
+				fread( pSwizzled, g_nChromaSize, 1, pFile );
 
 				if( iFileType == TYPE_BMP )
 				{
@@ -5634,7 +5156,7 @@ int CmdTextSave (int nArgs)
 		g_sMemoryLoadSaveFileName = g_aArgs[ 1 ].sArg;
 	else
 	{
-		if( VideoGetSW80COL() )
+		if( GetVideo().VideoGetSW80COL() )
 			g_sMemoryLoadSaveFileName = "AppleWin_Text80.txt";
 		else
 			g_sMemoryLoadSaveFileName = "AppleWin_Text40.txt";
@@ -6156,19 +5678,19 @@ Update_t CmdOutputCalc (int nArgs)
 		nAddress, nBit, nAddress, c );
 
 	if (bParen)
-		_tcscat( sText, TEXT("(") );
+		strcat( sText, TEXT("(") );
 
 	if (bHi & bLo)
-		_tcscat( sText, TEXT("High Ctrl") );
+		strcat( sText, TEXT("High Ctrl") );
 	else
 	if (bHi)
-		_tcscat( sText, TEXT("High") );
+		strcat( sText, TEXT("High") );
 	else
 	if (bLo)
-		_tcscat( sText, TEXT("Ctrl") );
+		strcat( sText, TEXT("Ctrl") );
 
 	if (bParen)
-		_tcscat( sText, TEXT(")") );
+		strcat( sText, TEXT(")") );
 
 	ConsoleBufferPush( sText );
 
@@ -6458,7 +5980,7 @@ Update_t CmdOutputRun (int nArgs)
 //	if (g_aArgs[1].bType & TYPE_QUOTED_2)
 
 	sMiniFileName = pFileName.substr(0, MIN(pFileName.size(), CONSOLE_WIDTH));
-//	_tcscat( sMiniFileName, ".aws" ); // HACK: MAGIC STRING
+//	strcat( sMiniFileName, ".aws" ); // HACK: MAGIC STRING
 
 	if (pFileName[0] == '\\' || pFileName[1] == ':')	// NB. Any prefix quote has already been stripped
 	{
@@ -6883,8 +6405,8 @@ Update_t _ViewOutput( ViewVideoPage_t iPage, int bVideoModeFlags )
 	switch( iPage ) 
 	{
 		case VIEW_PAGE_X:
-			bVideoModeFlags |= !VideoGetSWPAGE2() ? 0 : VF_PAGE2;
-			bVideoModeFlags |= !VideoGetSWMIXED() ? 0 : VF_MIXED;
+			bVideoModeFlags |= !GetVideo().VideoGetSWPAGE2() ? 0 : VF_PAGE2;
+			bVideoModeFlags |= !GetVideo().VideoGetSWMIXED() ? 0 : VF_MIXED;
 			break; // Page Current & current MIXED state
 		case VIEW_PAGE_1: bVideoModeFlags |= 0; break; // Page 1
 		case VIEW_PAGE_2: bVideoModeFlags |= VF_PAGE2; break; // Page 2
@@ -6894,7 +6416,7 @@ Update_t _ViewOutput( ViewVideoPage_t iPage, int bVideoModeFlags )
 	}
 
 	DebugVideoMode::Instance().Set(bVideoModeFlags);
-	VideoRefreshScreen( bVideoModeFlags, true );
+	GetFrame().VideoRefreshScreen( bVideoModeFlags, true );
 	return UPDATE_NOTHING; // intentional
 }
 
@@ -7445,9 +6967,9 @@ Update_t CmdWindowViewData (int nArgs)
 //===========================================================================
 Update_t CmdWindowViewOutput (int nArgs)
 {
-	VideoRedrawScreen();
+	GetFrame().VideoRedrawScreen();
 
-	DebugVideoMode::Instance().Set(g_uVideoMode);
+	DebugVideoMode::Instance().Set( GetVideo().GetVideoMode() );
 
 	return UPDATE_NOTHING; // intentional
 }
@@ -8293,12 +7815,12 @@ void ProfileFormat( bool bExport, ProfileFormat_e eFormatMode )
 		bOpcodeGood = false;
 	}
 
-	char *pColorOperator = "";
-	char *pColorNumber   = "";
-	char *pColorOpcode   = "";
-	char *pColorMnemonic = "";
-	char *pColorOpmode   = "";
-	char *pColorTotal    = "";
+	const char *pColorOperator = "";
+	const char *pColorNumber   = "";
+	const char *pColorOpcode   = "";
+	const char *pColorMnemonic = "";
+	const char *pColorOpmode   = "";
+	const char *pColorTotal    = "";
 	if (! bExport)
 	{
 		pColorOperator = CHC_ARG_SEP; // grey
@@ -8546,7 +8068,7 @@ void DebugBegin ()
 	GetDebuggerMemDC();
 
 	g_nAppMode = MODE_DEBUG;
-	FrameRefreshStatus(DRAW_TITLE);
+	GetFrame().FrameRefreshStatus(DRAW_TITLE | DRAW_DISK_STATUS);
 
 	if (GetMainCpu() == CPU_6502)
 	{
@@ -8697,7 +8219,7 @@ void DebugContinueStepping(const bool bCallerWillUpdateDisplay/*=false*/)
 		{
 			TCHAR sText[ CONSOLE_WIDTH ];
 			char szStopMessage[CONSOLE_WIDTH];
-			char* pszStopReason = szStopMessage;
+			const char* pszStopReason = szStopMessage;
 
 			if (regs.pc == g_nDebugStepUntil)
 				pszStopReason = TEXT("PC matches 'Go until' address");
@@ -8733,7 +8255,7 @@ void DebugContinueStepping(const bool bCallerWillUpdateDisplay/*=false*/)
 		SoundCore_SetFade(FADE_OUT);	// NB. Call when MODE_STEPPING (not MODE_DEBUG) - see function
 
 		g_nAppMode = MODE_DEBUG;
-		FrameRefreshStatus(DRAW_TITLE);
+		GetFrame().FrameRefreshStatus(DRAW_TITLE | DRAW_DISK_STATUS);
 // BUG: PageUp, Trace - doesn't center cursor
 
 		g_nDisasmCurAddress = regs.pc;
@@ -8761,12 +8283,8 @@ void DebugStopStepping(void)
 void DebugDestroy ()
 {
 	DebugEnd();
+	FontsDestroy();
 
-	for (int iFont = 0; iFont < NUM_FONTS; iFont++ )
-	{
-		DeleteObject( g_aFontConfig[ iFont ]._hFont );
-		g_aFontConfig[ iFont ]._hFont = NULL;
-	}
 //	DeleteObject(g_hFontDisasm  );
 //	DeleteObject(g_hFontDebugger);
 //	DeleteObject(g_hFontWebDings);
@@ -8829,7 +8347,7 @@ void DebugInitialize ()
 
 	GetConsoleFontDC(); // Load font
 
-	ZeroMemory( g_aConsoleDisplay, sizeof( g_aConsoleDisplay ) ); // CONSOLE_WIDTH * CONSOLE_HEIGHT );
+	memset( g_aConsoleDisplay, 0, sizeof( g_aConsoleDisplay ) ); // CONSOLE_WIDTH * CONSOLE_HEIGHT );
 	ConsoleInputReset();
 
 	for( int iWindow = 0; iWindow < NUM_WINDOWS; iWindow++ )
@@ -8851,12 +8369,11 @@ void DebugInitialize ()
 	WindowUpdateConsoleDisplayedSize();
 
 	// CLEAR THE BREAKPOINT AND WATCH TABLES
-	ZeroMemory( g_aBreakpoints     , MAX_BREAKPOINTS       * sizeof(Breakpoint_t));
-	ZeroMemory( g_aWatches         , MAX_WATCHES           * sizeof(Watches_t) );
-	ZeroMemory( g_aZeroPagePointers, MAX_ZEROPAGE_POINTERS * sizeof(ZeroPagePointers_t));
+	memset( g_aBreakpoints     , 0, MAX_BREAKPOINTS       * sizeof(Breakpoint_t));
+	memset( g_aWatches         , 0, MAX_WATCHES           * sizeof(Watches_t) );
+	memset( g_aZeroPagePointers, 0, MAX_ZEROPAGE_POINTERS * sizeof(ZeroPagePointers_t));
 
 	// Load Main, Applesoft, and User Symbols
-	extern bool g_bSymbolsDisplayMissingFile;
 	g_bSymbolsDisplayMissingFile = false;
 
 	g_iCommand = CMD_SYMBOLS_ROM;
@@ -8885,24 +8402,7 @@ void DebugInitialize ()
 	int nArgs = _Arg_1( g_sFontNameDefault );
 #endif
 
-	for (int iFont = 0; iFont < NUM_FONTS; iFont++ )
-	{
-		g_aFontConfig[ iFont ]._hFont = NULL;
-#if USE_APPLE_FONT
-		g_aFontConfig[ iFont ]._nFontHeight   = CONSOLE_FONT_HEIGHT;
-		g_aFontConfig[ iFont ]._nFontWidthAvg = CONSOLE_FONT_WIDTH;
-		g_aFontConfig[ iFont ]._nFontWidthMax = CONSOLE_FONT_WIDTH;
-		g_aFontConfig[ iFont ]._nLineHeight   = CONSOLE_FONT_HEIGHT;
-#endif
-	}
-
-#if OLD_FONT
-	_CmdConfigFont( FONT_INFO          , g_sFontNameInfo   , FIXED_PITCH | FF_MODERN      , g_nFontHeight ); // DEFAULT_CHARSET
-	_CmdConfigFont( FONT_CONSOLE       , g_sFontNameConsole, FIXED_PITCH | FF_MODERN      , g_nFontHeight ); // DEFAULT_CHARSET
-	_CmdConfigFont( FONT_DISASM_DEFAULT, g_sFontNameDisasm , FIXED_PITCH | FF_MODERN      , g_nFontHeight ); // OEM_CHARSET
-	_CmdConfigFont( FONT_DISASM_BRANCH , g_sFontNameBranch , DEFAULT_PITCH | FF_DECORATIVE, g_nFontHeight+3); // DEFAULT_CHARSET
-#endif
-	_UpdateWindowFontHeights( g_aFontConfig[ FONT_DISASM_DEFAULT ]._nFontHeight );
+	FontsInitialize();
 
 	int iColor;
 	
@@ -8963,7 +8463,7 @@ void DebugInitialize ()
 	// Check all summary help to see if it fits within the console
 	for (int iCmd = 0; iCmd < NUM_COMMANDS; iCmd++ )
 	{	
-		char *pHelp = g_aCommands[ iCmd ].pHelpSummary;
+		const char *pHelp = g_aCommands[ iCmd ].pHelpSummary;
 		if (pHelp)
 		{
 			int nLen = _tcslen( pHelp ) + 2;
@@ -9057,65 +8557,7 @@ void DebuggerInputConsoleChar( TCHAR ch )
 	else
 	if (ch == 0x16) // HACK: Ctrl-V.  WTF!?
 	{
-		// Support Clipboard (paste)
-		if (!IsClipboardFormatAvailable(CF_TEXT)) 
-			return;
-
-		if (!OpenClipboard( g_hFrameWindow )) 
-			return;
-
-		HGLOBAL hClipboard;
-		LPTSTR  pData;
-
-		hClipboard = GetClipboardData(CF_TEXT);
-		if (hClipboard != NULL)
-		{
-			pData = (char*) GlobalLock(hClipboard);
-			if (pData != NULL)
-			{
-				LPTSTR pSrc = pData;
-				char c;
-
-				while (true)
-				{
-					c = *pSrc++;
-
-					if (! c)
-						break;
-
-					if (c == CHAR_CR)
-					{
-#if WIN32						
-						// Eat char
-#endif
-#if MACOSX
-						#pragma error( "TODO: Mac port - handle CR/LF")
-#endif
-					}
-					else
-					if (c == CHAR_LF)
-					{
-#if WIN32						
-						DebuggerProcessCommand( true );	
-#endif
-#if MACOSX
-						#pragma error( "TODO: Mac port - handle CR/LF")
-#endif
-					}
-					else
-					{
-						// If we didn't want verbatim, we could do:
-						// DebuggerInputConsoleChar( c );
-						if ((c >= CHAR_SPACE) && (c <= 126)) // HACK MAGIC # 32 -> ' ', # 126 
-							ConsoleInputChar( c );
-					}
-				}
-				GlobalUnlock(hClipboard);
-			}
-		}
-		CloseClipboard();
-
-		UpdateDisplay( UPDATE_CONSOLE_DISPLAY );
+		ProcessClipboardCommands();
 	}
 }
 
@@ -9581,7 +9023,7 @@ void DebugDisplay( BOOL bInitDisasm/*=FALSE*/ )
 	{
 		uint32_t mode = 0;
 		DebugVideoMode::Instance().Get(&mode);
-		VideoRefreshScreen(mode, true);
+		GetFrame().VideoRefreshScreen(mode, true);
 		return;
 	}
 
@@ -9640,134 +9082,6 @@ void DebuggerCursorNext()
 //	return g_aInputCursor[ g_iInputCursor ];
 //}
 
-
-//===========================================================================
-void DebuggerMouseClick( int x, int y )
-{
-	if (g_nAppMode != MODE_DEBUG)
-		return;
-
-	KeybUpdateCtrlShiftStatus();
-	int iAltCtrlShift  = 0;
-	iAltCtrlShift |= KeybGetAltStatus()   ? 1<<0 : 0;
-	iAltCtrlShift |= KeybGetCtrlStatus()  ? 1<<1 : 0;
-	iAltCtrlShift |= KeybGetShiftStatus() ? 1<<2 : 0;
-
-	// GH#462 disasm click #
-	if (iAltCtrlShift != g_bConfigDisasmClick)
-		return;
-
-	int nFontWidth  = g_aFontConfig[ FONT_DISASM_DEFAULT ]._nFontWidthAvg * GetViewportScale();
-	int nFontHeight = g_aFontConfig[ FONT_DISASM_DEFAULT ]._nLineHeight * GetViewportScale();
-
-	// do picking
-
-	const int nOffsetX = IsFullScreen() ? GetFullScreenOffsetX() : Get3DBorderWidth();
-	const int nOffsetY = IsFullScreen() ? GetFullScreenOffsetY() : Get3DBorderHeight();
-
-	const int nOffsetInScreenX = x - nOffsetX;
-	const int nOffsetInScreenY = y - nOffsetY;
-
-	if (nOffsetInScreenX < 0 || nOffsetInScreenY < 0)
-		return;
-
-	int cx = nOffsetInScreenX / nFontWidth;
-	int cy = nOffsetInScreenY / nFontHeight;
-
-#if _DEBUG
-	char sText[ CONSOLE_WIDTH ];
-	sprintf( sText, "x:%d y:%d  cx:%d cy:%d", x, y, cx, cy );
-	ConsoleDisplayPush( sText );
-	DebugDisplay();
-#endif
-
-	if (g_iWindowThis == WINDOW_CODE)
-	{
-		// Display_AssemblyLine -- need Tabs
-
-		if( g_bConfigDisasmAddressView )
-		{
-			// HACK: hard-coded from DrawDisassemblyLine::aTabs[] !!!
-			if( cx < 4) // #### 
-			{
-				g_bConfigDisasmAddressView ^= true;
-				DebugDisplay();
-			}
-			else
-			if (cx == 4) //    :
-			{
-				g_bConfigDisasmAddressColon ^= true;
-				DebugDisplay();
-			}
-			else         //      AD 00 00
-			if ((cx > 4) && (cx <= 13))
-			{
-				g_bConfigDisasmOpcodesView ^= true;
-				DebugDisplay();
-			}
-			
-		} else
-		{
-			if( cx == 0 ) //   :
-			{
-				// Three-way state
-				//   "addr:"
-				//   ":"
-				//   " "
-				g_bConfigDisasmAddressColon ^= true;
-				if( g_bConfigDisasmAddressColon )
-				{
-					g_bConfigDisasmAddressView ^= true;
-				}
-				DebugDisplay();
-			}
-			else
-			if ((cx > 0) & (cx <= 13))
-			{
-				g_bConfigDisasmOpcodesView ^= true;
-				DebugDisplay();
-			}
-		}
-		// Click on PC inside reg window?
-		if ((cx >= 51) && (cx <= 60))
-		{
-			if (cy == 3)
-			{
-				CmdCursorJumpPC( CURSOR_ALIGN_CENTER );
-				DebugDisplay();
-			}
-			else
-			if (cy == 4 || cy == 5)
-			{
-				int iFlag = -1;
-				int nFlag = _6502_NUM_FLAGS;
-
-				while( nFlag --> 0 )
-				{
-					// TODO: magic number instead of DrawFlags() DISPLAY_FLAG_COLUMN, rect.left += ((2 + _6502_NUM_FLAGS) * nSpacerWidth);
-					// BP_SRC_FLAG_C is 6,  cx 60 --> 0
-					// ...
-					// BP_SRC_FLAG_N is 13, cx 53 --> 7
-					if (cx == (53 + nFlag))
-					{
-						iFlag = 7 - nFlag;
-						break;
-					}
-				}
-
-				if (iFlag >= 0)
-				{
-					regs.ps ^= (1 << iFlag);
-					DebugDisplay();
-				}
-			}
-			else // Click on stack
-			if( cy > 3)
-			{
-			}
-		}
-	}
-}
 
 //===========================================================================
 bool IsDebugSteppingAtFullSpeed(void)

@@ -87,9 +87,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "CPU.h"
-#include "AppleWin.h"
+#include "Core.h"
 #include "CardManager.h"
-#include "Frame.h"
 #include "Memory.h"
 #include "Mockingboard.h"
 #include "MouseInterface.h"
@@ -97,7 +96,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Speech.h"
 #endif
 #include "SynchronousEventManager.h"
-#include "Video.h"
 #include "NTSC.h"
 #include "Log.h"
 
@@ -195,6 +193,11 @@ void SetActiveCpu(eCpuType cpu)
 	g_ActiveCPU = cpu;
 }
 
+bool IsIrqAsserted(void)
+{
+	return g_bmIRQ ? true : false;
+}
+
 bool Is6502InterruptEnabled(void)
 {
 	return !(regs.ps & AF_INTERRUPT);
@@ -266,7 +269,8 @@ static __forceinline void DoIrqProfiling(DWORD uCycles)
 
 #ifdef USE_SPEECH_API
 
-const USHORT COUT = 0xFDED;
+const USHORT COUT1 = 0xFDF0;			// GH#934 - ProDOS: COUT1 better than using COUT/$FDED
+const USHORT BASICOUT = 0xC307;			// GH#934 - 80COL: use BASICOUT
 
 const UINT OUTPUT_BUFFER_SIZE = 256;
 char g_OutputBuffer[OUTPUT_BUFFER_SIZE+1+1];	// +1 for EOL, +1 for NULL
@@ -367,7 +371,7 @@ static __forceinline void Fetch(BYTE& iOpcode, ULONG uExecutedCycles)
 		: *(mem+PC);
 
 #ifdef USE_SPEECH_API
-	if (PC == COUT && g_Speech.IsEnabled() && !g_bFullSpeed)
+	if ((PC == COUT1 || PC == BASICOUT) && g_Speech.IsEnabled() && !g_bFullSpeed)
 		CaptureCOUT();
 #endif
 
@@ -432,7 +436,13 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 		UINT uExtraCycles = 0;	// Needed for CYC(a) macro
 		CYC(7)
 #if defined(_DEBUG) && LOG_IRQ_TAKEN_AND_RTI
-		LogOutput("IRQ\n");
+		std::string irq6522;
+		MB_Get6522IrqDescription(irq6522);
+		const char* pSrc =	(g_bmIRQ & 1) ? irq6522.c_str() :
+							(g_bmIRQ & 2) ? "SPEECH" :
+							(g_bmIRQ & 4) ? "SSC" :
+							(g_bmIRQ & 8) ? "MOUSE" : "UNKNOWN";
+		LogOutput("IRQ (%08X) (%s)\n", (UINT)g_nCycleIrqStart, pSrc);
 #endif
 		CheckSynchronousInterruptSources(7, uExecutedCycles);
 	}
@@ -442,11 +452,20 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 
 //===========================================================================
 
-#define READ _READ
-#define WRITE(value) _WRITE(value)
+#define READ _READ_WITH_IO_F8xx
+#define WRITE(value) _WRITE_WITH_IO_F8xx(value)
 #define HEATMAP_X(address)
 
 #include "CPU/cpu6502.h"  // MOS 6502
+
+#undef READ
+#undef WRITE
+
+//-------
+
+#define READ _READ
+#define WRITE(value) _WRITE(value)
+
 #include "CPU/cpu65C02.h" // WDC 65C02
 
 #undef READ
@@ -455,8 +474,8 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 
 //-----------------
 
-#define READ Heatmap_ReadByte(addr, uExecutedCycles)
-#define WRITE(value) Heatmap_WriteByte(addr, value, uExecutedCycles);
+#define READ Heatmap_ReadByte_With_IO_F8xx(addr, uExecutedCycles)
+#define WRITE(value) Heatmap_WriteByte_With_IO_F8xx(addr, value, uExecutedCycles);
 
 #define HEATMAP_X(address) Heatmap_X(address)
 
@@ -465,6 +484,14 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 #define Cpu6502 Cpu6502_debug
 #include "CPU/cpu6502.h"  // MOS 6502
 #undef Cpu6502
+
+#undef READ
+#undef WRITE
+
+//-------
+
+#define READ Heatmap_ReadByte(addr, uExecutedCycles)
+#define WRITE(value) Heatmap_WriteByte(addr, value, uExecutedCycles);
 
 #define Cpu65C02 Cpu65C02_debug
 #include "CPU/cpu65C02.h" // WDC 65C02
@@ -506,10 +533,10 @@ BYTE CpuRead(USHORT addr, ULONG uExecutedCycles)
 {
 	if (g_nAppMode == MODE_RUNNING)
 	{
-		return _READ;
+		return _READ_WITH_IO_F8xx;	// Superset of _READ
 	}
 
-	return Heatmap_ReadByte(addr, uExecutedCycles);
+	return Heatmap_ReadByte_With_IO_F8xx(addr, uExecutedCycles);
 }
 
 // Called by z80_WRMEM()
@@ -517,11 +544,11 @@ void CpuWrite(USHORT addr, BYTE value, ULONG uExecutedCycles)
 {
 	if (g_nAppMode == MODE_RUNNING)
 	{
-		_WRITE(value);
+		_WRITE_WITH_IO_F8xx(value);	// Superset of _WRITE
 		return;
 	}
 
-	Heatmap_WriteByte(addr, value, uExecutedCycles);
+	Heatmap_WriteByte_With_IO_F8xx(addr, value, uExecutedCycles);
 }
 
 //===========================================================================
@@ -681,7 +708,6 @@ void CpuIrqAssert(eIRQSRC Device)
 
 void CpuIrqDeassert(eIRQSRC Device)
 {
-	_ASSERT(g_bCritSectionValid);
 	if (g_bCritSectionValid) EnterCriticalSection(&g_CriticalSection);
 	g_bmIRQ &= ~(1<<Device);
 	if (g_bCritSectionValid) LeaveCriticalSection(&g_CriticalSection);

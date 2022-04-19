@@ -30,8 +30,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 
+#include "../Interface.h"
 #include "../CPU.h"
-#include "../Frame.h"
 #include "../Memory.h"
 
 #define DEBUG_ASSEMBLER 0
@@ -471,7 +471,7 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 #if _DEBUG
 	if (! g_aOpcodes)
 	{
-		MessageBox( g_hFrameWindow, "Debugger not properly initialized", "ERROR", MB_OK );
+		GetFrame().FrameMessageBox("Debugger not properly initialized", "ERROR", MB_OK );
 
 		g_aOpcodes = & g_aOpcodes65C02[ 0 ];	// Enhanced Apple //e
 		g_aOpmodes[ AM_2 ].m_nBytes = 2;
@@ -705,13 +705,13 @@ bool _6502_GetTargets ( WORD nAddress, int *pTargetPartial_, int *pTargetPartial
 			*pTargetPartial_    = nTarget16;
 			*pTargetPartial2_   = nTarget16+1;
 			if (bIncludeNextOpcodeAddress)
-				*pTargetPointer_ = *(LPWORD)(mem + nTarget16);
+				*pTargetPointer_ = mem[nTarget16] | (mem[(nTarget16+1)&0xFFFF]<<8);
 			if (pTargetBytes_)
 				*pTargetBytes_ = 2;
 			break;
 
 		case AM_IZX: // Indexed (Zeropage Indirect, X)
-			nTarget8  += regs.x;
+			nTarget8 = (nTarget8 + regs.x) & 0xFF;
 			*pTargetPartial_    = nTarget8;
 			*pTargetPointer_    = *(LPWORD)(mem + nTarget8);
 			if (pTargetBytes_)

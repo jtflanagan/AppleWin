@@ -29,8 +29,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "SoundCore.h"
-#include "AppleWin.h"
-#include "Frame.h"
+#include "Core.h"
+#include "Interface.h"
 #include "Log.h"
 #include "Speaker.h"
 
@@ -38,7 +38,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #define MAX_SOUND_DEVICES 10
 
-static char *sound_devices[MAX_SOUND_DEVICES];
+static std::string sound_devices[MAX_SOUND_DEVICES];
 static GUID sound_device_guid[MAX_SOUND_DEVICES];
 static int num_sound_devices = 0;
 
@@ -48,7 +48,7 @@ static LPDIRECTSOUND g_lpDS = NULL;
 
 // Used for muting & fading:
 
-static const UINT uMAX_VOICES = 66;	// 64 phonemes + spkr + mockingboard
+static const UINT uMAX_VOICES = 6;	// 4x SSI263 + spkr + mockingboard
 static UINT g_uNumVoices = 0;
 static VOICE* g_pVoices[uMAX_VOICES] = {NULL};
 
@@ -67,7 +67,9 @@ static BOOL CALLBACK DSEnumProc(LPGUID lpGUID, LPCTSTR lpszDesc, LPCTSTR lpszDrv
 		return TRUE;
 	if(lpGUID != NULL)
 		memcpy(&sound_device_guid[i], lpGUID, sizeof (GUID));
-	sound_devices[i] = _strdup(lpszDesc);
+	else
+		memset(&sound_device_guid[i], 0, sizeof(GUID));
+	sound_devices[i] = lpszDesc;
 
 	if(g_fh) fprintf(g_fh, "%d: %s - %s\n",i,lpszDesc,lpszDrvName);
 
@@ -78,7 +80,7 @@ static BOOL CALLBACK DSEnumProc(LPGUID lpGUID, LPCTSTR lpszDesc, LPCTSTR lpszDrv
 //-----------------------------------------------------------------------------
 
 #ifdef _DEBUG
-static char *DirectSound_ErrorText (HRESULT error)
+static const char *DirectSound_ErrorText (HRESULT error)
 {
     switch( error )
     {
@@ -165,8 +167,10 @@ bool DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
 
 //-----------------------------------------------------------------------------
 
-HRESULT DSGetSoundBuffer(VOICE* pVoice, DWORD dwFlags, DWORD dwBufferSize, DWORD nSampleRate, int nChannels)
+HRESULT DSGetSoundBuffer(VOICE* pVoice, DWORD dwFlags, DWORD dwBufferSize, DWORD nSampleRate, int nChannels, const char* pszDevName)
 {
+	pVoice->name = pszDevName;
+
 	WAVEFORMATEX wavfmt;
 	DSBUFFERDESC dsbdesc;
 
@@ -224,29 +228,41 @@ void DSReleaseSoundBuffer(VOICE* pVoice)
 
 //-----------------------------------------------------------------------------
 
-bool DSZeroVoiceBuffer(PVOICE Voice, const char* pszDevName, DWORD dwBufferSize)
+bool DSVoiceStop(PVOICE Voice)
 {
 #ifdef NO_DIRECT_X
-
 	return false;
+#else
+	_ASSERT(Voice->lpDSBvoice);
+	HRESULT hr = Voice->lpDSBvoice->Stop();
+	if(FAILED(hr))
+	{
+		if(g_fh) fprintf(g_fh, "%s: DSStop failed (%08X)\n", Voice->name.c_str(), hr);
+		return false;
+	}
 
+	Voice->bActive = false;
+	return true;
+#endif // NO_DIRECT_X
+}
+
+// Use this to Play()
+bool DSZeroVoiceBuffer(PVOICE Voice, DWORD dwBufferSize)
+{
+#ifdef NO_DIRECT_X
+	return false;
 #else
 
 	DWORD dwDSLockedBufferSize = 0;    // Size of the locked DirectSound buffer
 	SHORT* pDSLockedBuffer;
 
-	_ASSERT(Voice->lpDSBvoice);
-	HRESULT hr = Voice->lpDSBvoice->Stop();
-	if(FAILED(hr))
-	{
-		if(g_fh) fprintf(g_fh, "%s: DSStop failed (%08X)\n",pszDevName,hr);
+	if (!DSVoiceStop(Voice))
 		return false;
-	}
 
-	hr = DSGetLock(Voice->lpDSBvoice, 0, 0, &pDSLockedBuffer, &dwDSLockedBufferSize, NULL, 0);
+	HRESULT hr = DSGetLock(Voice->lpDSBvoice, 0, 0, &pDSLockedBuffer, &dwDSLockedBufferSize, NULL, 0);
 	if(FAILED(hr))
 	{
-		if(g_fh) fprintf(g_fh, "%s: DSGetLock failed (%08X)\n",pszDevName,hr);
+		if(g_fh) fprintf(g_fh, "%s: DSGetLock failed (%08X)\n", Voice->name.c_str(), hr);
 		return false;
 	}
 
@@ -256,24 +272,25 @@ bool DSZeroVoiceBuffer(PVOICE Voice, const char* pszDevName, DWORD dwBufferSize)
 	hr = Voice->lpDSBvoice->Unlock((void*)pDSLockedBuffer, dwDSLockedBufferSize, NULL, 0);
 	if(FAILED(hr))
 	{
-		if(g_fh) fprintf(g_fh, "%s: DSUnlock failed (%08X)\n",pszDevName,hr);
+		if(g_fh) fprintf(g_fh, "%s: DSUnlock failed (%08X)\n", Voice->name.c_str(), hr);
 		return false;
 	}
 
 	hr = Voice->lpDSBvoice->Play(0,0,DSBPLAY_LOOPING);
 	if(FAILED(hr))
 	{
-		if(g_fh) fprintf(g_fh, "%s: DSPlay failed (%08X)\n",pszDevName,hr);
+		if(g_fh) fprintf(g_fh, "%s: DSPlay failed (%08X)\n", Voice->name.c_str(), hr);
 		return false;
 	}
 
+	Voice->bActive = true;
 	return true;
 #endif // NO_DIRECT_X
 }
 
 //-----------------------------------------------------------------------------
 
-bool DSZeroVoiceWritableBuffer(PVOICE Voice, const char* pszDevName, DWORD dwBufferSize)
+bool DSZeroVoiceWritableBuffer(PVOICE Voice, DWORD dwBufferSize)
 {
 	DWORD dwDSLockedBufferSize0=0, dwDSLockedBufferSize1=0;
 	SHORT *pDSLockedBuffer0, *pDSLockedBuffer1;
@@ -285,7 +302,7 @@ bool DSZeroVoiceWritableBuffer(PVOICE Voice, const char* pszDevName, DWORD dwBuf
 							&pDSLockedBuffer1, &dwDSLockedBufferSize1);
 	if(FAILED(hr))
 	{
-		if(g_fh) fprintf(g_fh, "%s: DSGetLock failed (%08X)\n",pszDevName,hr);
+		if(g_fh) fprintf(g_fh, "%s: DSGetLock failed (%08X)\n", Voice->name.c_str(), hr);
 		return false;
 	}
 
@@ -297,7 +314,7 @@ bool DSZeroVoiceWritableBuffer(PVOICE Voice, const char* pszDevName, DWORD dwBuf
 									(void*)pDSLockedBuffer1, dwDSLockedBufferSize1);
 	if(FAILED(hr))
 	{
-		if(g_fh) fprintf(g_fh, "%s: DSUnlock failed (%08X)\n",pszDevName,hr);
+		if(g_fh) fprintf(g_fh, "%s: DSUnlock failed (%08X)\n", Voice->name.c_str(), hr);
 		return false;
 	}
 
@@ -426,7 +443,7 @@ void SoundCore_SetFade(eFADE FadeType)
 	if(g_nAppMode == MODE_DEBUG)
 		return;
 
-	// Fade in/out for speaker, the others are demuted/muted here
+	// Fade in/out for speaker, the others are unmuted/muted here
 	if(FadeType != FADE_NONE)
 	{
 		for(UINT i=0; i<g_uNumVoices; i++)
@@ -491,6 +508,7 @@ bool DSInit()
 		return true;		// Already initialised successfully
 	}
 
+	num_sound_devices = 0;
 	HRESULT hr = DirectSoundEnumerate((LPDSENUMCALLBACK)DSEnumProc, NULL);
 	if(FAILED(hr))
 	{
@@ -522,7 +540,7 @@ bool DSInit()
 		return false;
 	}
 
-	hr = g_lpDS->SetCooperativeLevel(g_hFrameWindow, DSSCL_NORMAL);
+	hr = g_lpDS->SetCooperativeLevel(GetFrame().g_hFrameWindow, DSSCL_NORMAL);
 	if(FAILED(hr))
 	{
 		if(g_fh) fprintf(g_fh, "SetCooperativeLevel failed (%08X)\n",hr);
@@ -530,7 +548,7 @@ bool DSInit()
 	}
 
 	DSCAPS DSCaps;
-    ZeroMemory(&DSCaps, sizeof(DSCAPS));
+    memset(&DSCaps, 0, sizeof(DSCAPS));
     DSCaps.dwSize = sizeof(DSCAPS);
 	hr = g_lpDS->GetCaps(&DSCaps);
 	if(FAILED(hr))

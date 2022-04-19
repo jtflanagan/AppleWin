@@ -23,13 +23,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
+#include "PropertySheet.h"
 #include "PropertySheetHelper.h"
-#include "IPropertySheet.h"
 
-#include "../AppleWin.h"	// g_nAppMode, g_uScrollLockToggle, sg_PropertySheet
+#include "../Windows/AppleWin.h"	// g_nAppMode, g_uScrollLockToggle, sg_PropertySheet
 #include "../CardManager.h"
 #include "../Disk.h"
-#include "../Frame.h"
 #include "../Log.h"
 #include "../Registry.h"
 #include "../SaveState.h"
@@ -151,18 +150,18 @@ void CPropertySheetHelper::SetSlot(UINT slot, SS_CARDTYPE newCardType)
 // Used by:
 // . CPageDisk:		IDC_CIDERPRESS_BROWSE
 // . CPageAdvanced:	IDC_PRINTER_DUMP_FILENAME_BROWSE
-std::string CPropertySheetHelper::BrowseToFile(HWND hWindow, TCHAR* pszTitle, TCHAR* REGVALUE, TCHAR* FILEMASKS)
+std::string CPropertySheetHelper::BrowseToFile(HWND hWindow, const TCHAR* pszTitle, const TCHAR* REGVALUE, const TCHAR* FILEMASKS)
 {
 	TCHAR szFilename[MAX_PATH];
 	RegLoadString(REG_CONFIG, REGVALUE, 1, szFilename, MAX_PATH, TEXT(""));
 	std::string pathname = szFilename;
 
 	OPENFILENAME ofn;
-	ZeroMemory(&ofn,sizeof(OPENFILENAME));
+	memset(&ofn, 0, sizeof(OPENFILENAME));
 
 	ofn.lStructSize     = sizeof(OPENFILENAME);
 	ofn.hwndOwner       = hWindow;
-	ofn.hInstance       = g_hInstance;
+	ofn.hInstance       = GetFrame().g_hInstance;
 	ofn.lpstrFilter     = FILEMASKS;
 	/*ofn.lpstrFilter     =	TEXT("Applications (*.exe)\0*.exe\0")
 							TEXT("Text files (*.txt)\0*.txt\0")
@@ -190,7 +189,7 @@ void CPropertySheetHelper::SaveStateUpdate()
 }
 
 // NB. OK'ing this property sheet will call SaveStateUpdate()->Snapshot_SetFilename() with this new path & filename
-int CPropertySheetHelper::SaveStateSelectImage(HWND hWindow, TCHAR* pszTitle, bool bSave)
+int CPropertySheetHelper::SaveStateSelectImage(HWND hWindow, const TCHAR* pszTitle, bool bSave)
 {
 	// Whenever harddisks/disks are inserted (or removed) and *if path has changed* then:
 	// . Snapshot's path & Snapshot's filename will be updated to reflect the new defaults.
@@ -205,12 +204,12 @@ int CPropertySheetHelper::SaveStateSelectImage(HWND hWindow, TCHAR* pszTitle, bo
 	//
 
 	OPENFILENAME ofn;
-	ZeroMemory(&ofn,sizeof(OPENFILENAME));
+	memset(&ofn, 0, sizeof(OPENFILENAME));
 
 	ofn.lStructSize     = sizeof(OPENFILENAME);
 	ofn.hwndOwner       = hWindow;
-	ofn.hInstance       = g_hInstance;
-	ofn.lpstrFilter     = TEXT("Save State files (*.aws.yaml)\0*.aws.yaml\0");
+	ofn.hInstance       = GetFrame().g_hInstance;
+	ofn.lpstrFilter     = TEXT("Save State files (*.aws.yaml)\0*.aws.yaml\0")
 						  TEXT("All Files\0*.*\0");
 	ofn.lpstrFile       = szFilename;	// Dialog strips the last .EXT from this string (eg. file.aws.yaml is displayed as: file.aws
 	ofn.nMaxFile        = sizeof(szFilename);
@@ -275,18 +274,18 @@ void CPropertySheetHelper::PostMsgAfterClose(HWND hWnd, PAGETYPE page)
 	if (m_ConfigNew.m_uSaveLoadStateMsg && IsOkToSaveLoadState(hWnd, IsConfigChanged()))
 	{
 		// Drop any config change, and do load/save state
-		PostMessage(g_hFrameWindow, m_ConfigNew.m_uSaveLoadStateMsg, 0, 0);
+		PostMessage(GetFrame().g_hFrameWindow, m_ConfigNew.m_uSaveLoadStateMsg, 0, 0);
 		return;
 	}
 	
 	if (m_bDoBenchmark)
 	{
 		// Drop any config change, and do benchmark
-		PostMessage(g_hFrameWindow, WM_USER_BENCHMARK, 0, 0);	// NB. doesn't do WM_USER_RESTART
+		PostMessage(GetFrame().g_hFrameWindow, WM_USER_BENCHMARK, 0, 0);	// NB. doesn't do WM_USER_RESTART
 		return;
 	}
 
-	UINT uAfterClose = 0;
+	bool restart = false;
 
 	if (m_ConfigNew.m_Apple2Type == A2TYPE_CLONE)
 	{
@@ -311,11 +310,11 @@ void CPropertySheetHelper::PostMsgAfterClose(HWND hWnd, PAGETYPE page)
 
 		ApplyNewConfig();
 
-		uAfterClose = WM_USER_RESTART;
+		restart = true;
 	}
 
-	if (uAfterClose)
-		PostMessage(g_hFrameWindow, uAfterClose, 0, 0);
+	if (restart)
+		GetFrame().Restart();
 }
 
 bool CPropertySheetHelper::CheckChangesForRestart(HWND hWnd)
@@ -386,8 +385,8 @@ void CPropertySheetHelper::SaveCurrentConfig(void)
 	m_ConfigOld.m_Slot[SLOT4] = GetCardMgr().QuerySlot(SLOT4);
 	m_ConfigOld.m_Slot[SLOT5] = GetCardMgr().QuerySlot(SLOT5);
 	m_ConfigOld.m_bEnableHDD = HD_CardIsEnabled();
-	m_ConfigOld.m_bEnableTheFreezesF8Rom = sg_PropertySheet.GetTheFreezesF8Rom();
-	m_ConfigOld.m_videoRefreshRate = GetVideoRefreshRate();
+	m_ConfigOld.m_bEnableTheFreezesF8Rom = GetPropertySheet().GetTheFreezesF8Rom();
+	m_ConfigOld.m_videoRefreshRate = GetVideo().GetVideoRefreshRate();
 
 	// Reset flags each time:
 	m_ConfigOld.m_uSaveLoadStateMsg = 0;
@@ -405,7 +404,7 @@ void CPropertySheetHelper::RestoreCurrentConfig(void)
 	GetCardMgr().Insert(SLOT4, m_ConfigOld.m_Slot[SLOT4]);
 	GetCardMgr().Insert(SLOT5, m_ConfigOld.m_Slot[SLOT5]);
 	HD_SetEnabled(m_ConfigOld.m_bEnableHDD);
-	sg_PropertySheet.SetTheFreezesF8Rom(m_ConfigOld.m_bEnableTheFreezesF8Rom);
+	GetPropertySheet().SetTheFreezesF8Rom(m_ConfigOld.m_bEnableTheFreezesF8Rom);
 	m_ConfigNew.m_videoRefreshRate = m_ConfigOld.m_videoRefreshRate;	// Not SetVideoRefreshRate(), as this re-inits much Video/NTSC state!
 }
 

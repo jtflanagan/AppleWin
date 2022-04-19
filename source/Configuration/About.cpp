@@ -24,8 +24,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "About.h"
-#include "../AppleWin.h"
-#include "../Frame.h"
+#include "../Core.h"
+#include "../Interface.h"
+#include "../Windows/AppleWin.h"
 #include "../resource/resource.h"
 
 static const TCHAR g_szGPL[] = 
@@ -36,7 +37,7 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.";
 
 
-static BOOL CALLBACK DlgProcAbout(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+static INT_PTR CALLBACK DlgProcAbout(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	switch (message)
 	{
@@ -63,7 +64,7 @@ static BOOL CALLBACK DlgProcAbout(HWND hWnd, UINT message, WPARAM wparam, LPARAM
 
 	case WM_INITDIALOG:
 		{
-			HICON hIcon = LoadIcon(g_hInstance, TEXT("APPLEWIN_ICON"));
+			HICON hIcon = LoadIcon(GetFrame().g_hInstance, TEXT("APPLEWIN_ICON"));
 			SendDlgItemMessage(hWnd, IDC_APPLEWIN_ICON, STM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 
 			TCHAR szAppleWinVersion[50];
@@ -80,5 +81,5 @@ static BOOL CALLBACK DlgProcAbout(HWND hWnd, UINT message, WPARAM wparam, LPARAM
 
 bool AboutDlg(void)
 {
-	return DialogBox(g_hInstance, (LPCTSTR)IDD_ABOUT, g_hFrameWindow, DlgProcAbout) ? true : false;
+	return DialogBox(GetFrame().g_hInstance, (LPCTSTR)IDD_ABOUT, GetFrame().g_hFrameWindow, DlgProcAbout) ? true : false;
 }

@@ -36,9 +36,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "SerialComms.h"
-#include "AppleWin.h"
 #include "CPU.h"
-#include "Frame.h"
+#include "Interface.h"
 #include "Log.h"
 #include "Memory.h"
 #include "YamlHelper.h"
@@ -176,7 +175,7 @@ void CSuperSerialCard::UpdateCommState()
 		return;
 
 	DCB dcb;
-	ZeroMemory(&dcb,sizeof(DCB));
+	memset(&dcb, 0, sizeof(DCB));
 	dcb.DCBlength = sizeof(DCB);
 	GetCommState(m_hCommHandle,&dcb);
 	dcb.BaudRate = m_uBaudRate;
@@ -244,7 +243,7 @@ bool CSuperSerialCard::CheckComm()
 			// now send async events to our app's message handler
 			if (WSAAsyncSelect(
 					/* SOCKET s */ m_hCommListenSocket,
-					/* HWND hWnd */ g_hFrameWindow,
+					/* HWND hWnd */ GetFrame().g_hFrameWindow,
 					/* unsigned int wMsg */ WM_USER_TCP_SERIAL,
 					/* long lEvent */ (FD_ACCEPT | FD_CONNECT | FD_READ | FD_CLOSE)) != 0)
 			{
@@ -281,7 +280,7 @@ bool CSuperSerialCard::CheckComm()
 			// Read operation is to return immediately with the bytes that have already been received,
 			// even if no bytes have been received.
 			COMMTIMEOUTS ct;
-			ZeroMemory(&ct,sizeof(COMMTIMEOUTS));
+			memset(&ct, 0, sizeof(COMMTIMEOUTS));
 			ct.ReadIntervalTimeout = MAXDWORD;
 			SetCommTimeouts(m_hCommHandle,&ct);
 
@@ -316,7 +315,7 @@ void CSuperSerialCard::CommTcpSerialCleanup()
 {
 	if (m_hCommListenSocket != INVALID_SOCKET)
 	{
-		WSAAsyncSelect(m_hCommListenSocket, g_hFrameWindow, 0, 0); // Stop event messages
+		WSAAsyncSelect(m_hCommListenSocket, GetFrame().g_hFrameWindow, 0, 0); // Stop event messages
 		closesocket(m_hCommListenSocket);
 		m_hCommListenSocket = INVALID_SOCKET;
 
@@ -941,19 +940,7 @@ void CSuperSerialCard::CommInitialize(LPBYTE pCxRomPeripheral, UINT uSlot)
 	const UINT SSC_SLOT_FW_SIZE = 256;
 	const UINT SSC_SLOT_FW_OFFSET = 7*256;
 
-	HRSRC hResInfo = FindResource(NULL, MAKEINTRESOURCE(IDR_SSC_FW), "FIRMWARE");
-	if(hResInfo == NULL)
-		return;
-
-	DWORD dwResSize = SizeofResource(NULL, hResInfo);
-	if(dwResSize != SSC_FW_SIZE)
-		return;
-
-	HGLOBAL hResData = LoadResource(NULL, hResInfo);
-	if(hResData == NULL)
-		return;
-
-	BYTE* pData = (BYTE*) LockResource(hResData);	// NB. Don't need to unlock resource
+	BYTE* pData = GetFrame().GetResource(IDR_SSC_FW, "FIRMWARE", SSC_FW_SIZE);
 	if(pData == NULL)
 		return;
 

@@ -57,6 +57,8 @@
 		Useful to allow a floppy disk to boot from slot 6, drive 1. Use in combination with -d1.<br><br>
 		-s7-empty-on-exit<br>
 		Remove the hard disk controller card from slot 7 on AppleWin exit.<br><br>
+		-d1-disconnected, -d2-disconnected<br>
+		Disconnect drive-1 and/or drive-2 from the Disk II controller card in slot 6.<br><br>
 		-no-nsc<br>
 		Remove the No-Slot clock (NSC).<br><br>
 		-r &lt;number of pages&gt;<br>
@@ -64,15 +66,18 @@
 		-load-state &lt;savestate&gt;<br>
 		Load a save-state file (and auto power-on the Apple II).<br>
 		NB. This takes precedent over the -d1, -d2, -s#d#, -h1, -h2, s0-7, -model and -r switches.<br><br>
-		-f<br>
-		Start in full-screen mode<br><br>
+		-f or -full-screen<br>
+		Start in full-screen mode.<br><br>
+		-no-full-screen<br>
+		Start in Windowed mode (default).<br><br>
 		-fs-height=&lt;best|nnnn&gt;<br>
-		Use to select a better resolution for full-screen mode.<br>
+		Use to select a better resolution for full-screen or Windowed mode.<br>
 		<ul>
 			<li>best: picks the highest resolution where the height is an integer multiple of (192*2)</li>
 			<li>nnnn: select a specific resolution with height=nnnn pixels</li>
 		</ul>
-		NB. This changes the display resolution (and restores on exit).<br><br>
+		NB. This changes the display resolution (and restores on exit).<br>
+		NB. Specify -no-full-screen after this switch for Windowed mode. Without this it'll just default to full-screen.<br><br>
 		-rom &lt;file&gt;<br>
 		Use custom 12K ROM (at $D000) for Apple II machine, or 16K ROM (at $C000) for Apple //e machine.<br><br>
 		-f8rom &lt;file&gt;<br>
@@ -106,7 +111,8 @@
 		Use Right Alt (AltGr) & Right Control for Open Apple & Solid Apple keys respectively.<br>
 		Caveat: Right Control + F2 will do the //e self test (as Right Control is now both Ctrl and Solid Apple!). A workaround is just to use the Left Control key.<br><br>
 		-swap-buttons<br>
-		Swap the Windows keys used for Open Apple & Solid Apple keys.<br><br>
+		Swap buttons 0 and 1 for all input devices.<br>
+		EG. the Windows keys used for Open Apple & Solid Apple keys, and the current device being used to emulate a joystick (keyboard, real joystick or mouse)<br><br>
 
 		-use-real-printer<br>
 		Enables Advanced configuration control to allow dumping to a real printer<br><br>
@@ -179,7 +185,9 @@
 		-m<br>
 		Disable DirectSound support.<br><br>
 		-no-printscreen-dlg<br>
-		Suppress the warning message-box if AppleWin fails to capture the PrintScreen key.<br><br>
+		Suppress the warning message-box if AppleWin fails to capture the PrintScreen key.<br>
+		NB. There's now a "Don't show this message again" option on this message-box.
+		<br><br>
 		-screenshot-and-exit<br>
 		For testing. Use in combination with -load-state.<br><br>
 	</body>

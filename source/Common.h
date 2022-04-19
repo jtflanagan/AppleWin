@@ -136,15 +136,14 @@ enum AppMode_e
 #define REGVALUE_PREF_LAST_HARDDISK_2 "Last Harddisk Image 2"
 
 #define WM_USER_BENCHMARK	WM_USER+1
-#define WM_USER_RESTART		WM_USER+2
-#define WM_USER_SAVESTATE	WM_USER+3
-#define WM_USER_LOADSTATE	WM_USER+4
-#define VK_SNAPSHOT_560		WM_USER+5 // PrintScreen
-#define VK_SNAPSHOT_280		WM_USER+6 // PrintScreen+Shift
-#define WM_USER_TCP_SERIAL	WM_USER+7
-#define WM_USER_BOOT		WM_USER+8
-#define WM_USER_FULLSCREEN	WM_USER+9
-#define VK_SNAPSHOT_TEXT	WM_USER+10 // PrintScreen+Ctrl
+#define WM_USER_SAVESTATE	WM_USER+2
+#define WM_USER_LOADSTATE	WM_USER+3
+#define VK_SNAPSHOT_560		WM_USER+4 // PrintScreen
+#define VK_SNAPSHOT_280		WM_USER+5 // PrintScreen+Shift
+#define WM_USER_TCP_SERIAL	WM_USER+6
+#define WM_USER_BOOT		WM_USER+7
+#define WM_USER_FULLSCREEN	WM_USER+8
+#define VK_SNAPSHOT_TEXT	WM_USER+9 // PrintScreen+Ctrl
 
 enum eIRQSRC {IS_6522=0, IS_SPEECH, IS_SSC, IS_MOUSE};
 
@@ -238,6 +237,11 @@ inline bool IsEnhancedIIEorIIC(void)
 inline bool IsCopamBase64A(eApple2Type type)		// Copam Base64A
 {
 	return type == A2TYPE_BASE64A;
+}
+
+inline bool IsPravets(eApple2Type type)
+{
+	return type == A2TYPE_PRAVETS8M || type == A2TYPE_PRAVETS82 || type == A2TYPE_PRAVETS8A;
 }
 
 enum eBUTTON {BUTTON0=0, BUTTON1};

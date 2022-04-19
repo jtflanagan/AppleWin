@@ -28,8 +28,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "../Common.h"
 #include "../Registry.h"
 #include "../resource/resource.h"
-#include "../Tfe/Tfe.h"
-#include "../Tfe/Tfesupp.h"
+#include "../Tfe/tfe.h"
+#include "../Tfe/tfesupp.h"
 
 CPageConfigTfe* CPageConfigTfe::ms_this = 0;	// reinit'd in ctor
 
@@ -57,13 +57,13 @@ uilib_dialog_group CPageConfigTfe::ms_rightgroup[] =
 	{0, 0}
 };
 
-BOOL CALLBACK CPageConfigTfe::DlgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK CPageConfigTfe::DlgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	// Switch from static func to our instance
 	return CPageConfigTfe::ms_this->DlgProcInternal(hwnd, msg, wparam, lparam);
 }
 
-BOOL CPageConfigTfe::DlgProcInternal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CPageConfigTfe::DlgProcInternal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	switch (msg)
 	{

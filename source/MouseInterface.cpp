@@ -46,13 +46,12 @@ Etc.
 #include "SaveState_Structs_common.h"
 #include "Common.h"
 
-#include "AppleWin.h"	// g_SynchronousEventMgr
+#include "Core.h"	// g_SynchronousEventMgr
 #include "CardManager.h"
 #include "CPU.h"
-#include "Frame.h"	// FrameSetCursorPosByMousePos()
+#include "Interface.h"	// FrameSetCursorPosByMousePos()
 #include "Log.h"
 #include "Memory.h"
-#include "Video.h"
 #include "NTSC.h"	// NTSC_GetCyclesUntilVBlank()
 #include "YamlHelper.h"
 
@@ -165,20 +164,7 @@ void CMouseInterface::InitializeROM(void)
 		return;
 
 	const UINT FW_SIZE = 2*1024;
-
-	HRSRC hResInfo = FindResource(NULL, MAKEINTRESOURCE(IDR_MOUSEINTERFACE_FW), "FIRMWARE");
-	if(hResInfo == NULL)
-		return;
-
-	DWORD dwResSize = SizeofResource(NULL, hResInfo);
-	if(dwResSize != FW_SIZE)
-		return;
-
-	HGLOBAL hResData = LoadResource(NULL, hResInfo);
-	if(hResData == NULL)
-		return;
-
-	BYTE* pData = (BYTE*) LockResource(hResData);	// NB. Don't need to unlock resource
+	BYTE* pData = GetFrame().GetResource(IDR_MOUSEINTERFACE_FW, "FIRMWARE", FW_SIZE);
 	if(pData == NULL)
 		return;
 
@@ -588,7 +574,7 @@ void CMouseInterface::SetPositionAbs(int x, int y)
 {
 	m_iX = x;
 	m_iY = y;
-	FrameSetCursorPosByMousePos();
+	GetFrame().FrameSetCursorPosByMousePos();
 }
 
 void CMouseInterface::SetPositionRel(long dX, long dY, int* pOutOfBoundsX, int* pOutOfBoundsY)

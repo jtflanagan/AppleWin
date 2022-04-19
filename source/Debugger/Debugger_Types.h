@@ -1,5 +1,10 @@
 #pragma once
 
+// use the new Debugger Font (Apple Font)
+#define USE_APPLE_FONT   1
+
+// Test Colors & Glyphs
+#define DEBUG_APPLE_FONT 0
 
 // Addressing _____________________________________________________________________________________
 
@@ -270,7 +275,7 @@
 		char         m_sName[ MAX_COMMAND_LEN ];
 		CmdFuncPtr_t pFunction;
 		int          iCommand;     // offset (enum) for direct command name lookup
-		char        *pHelpSummary; // 1 line help summary
+		const char   *pHelpSummary; // 1 line help summary
 //		Hash_t       m_nHash; // TODO
 	};
 

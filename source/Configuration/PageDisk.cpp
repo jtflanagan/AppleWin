@@ -24,12 +24,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "PageDisk.h"
-#include "PropertySheetHelper.h"
+#include "PropertySheet.h"
 
-#include "../AppleWin.h"
+#include "../Windows/AppleWin.h"
 #include "../CardManager.h"
 #include "../Disk.h"	// Drive_e, Disk_Status_e
-#include "../Frame.h"
 #include "../Registry.h"
 #include "../resource/resource.h"
 
@@ -47,13 +46,13 @@ const TCHAR CPageDisk::m_defaultHDDOptions[] =
 				TEXT("Select Hard Disk Image...\0")
 				TEXT("Unplug Hard Disk Image\0");
 
-BOOL CALLBACK CPageDisk::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK CPageDisk::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	// Switch from static func to our instance
 	return CPageDisk::ms_this->DlgProcInternal(hWnd, message, wparam, lparam);
 }
 
-BOOL CPageDisk::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+INT_PTR CPageDisk::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	switch (message)
 	{
@@ -69,11 +68,11 @@ BOOL CPageDisk::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM l
 				InitOptions(hWnd);
 				break;
 			case PSN_KILLACTIVE:
-				SetWindowLong(hWnd, DWL_MSGRESULT, FALSE);			// Changes are valid
+				SetWindowLongPtr(hWnd, DWLP_MSGRESULT, FALSE);			// Changes are valid
 				break;
 			case PSN_APPLY:
 				DlgOK(hWnd);
-				SetWindowLong(hWnd, DWL_MSGRESULT, PSNRET_NOERROR);	// Changes are valid
+				SetWindowLongPtr(hWnd, DWLP_MSGRESULT, PSNRET_NOERROR);	// Changes are valid
 				break;
 			case PSN_QUERYCANCEL:
 				// Can use this to ask user to confirm cancel
@@ -92,14 +91,14 @@ BOOL CPageDisk::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM l
 			if (HIWORD(wparam) == CBN_SELCHANGE)
 			{
 				HandleFloppyDriveCombo(hWnd, DRIVE_1, LOWORD(wparam));
-				FrameRefreshStatus(DRAW_BUTTON_DRIVES);
+				GetFrame().FrameRefreshStatus(DRAW_BUTTON_DRIVES | DRAW_DISK_STATUS);
 			}
 			break;
 		case IDC_COMBO_DISK2:
 			if (HIWORD(wparam) == CBN_SELCHANGE)
 			{
 				HandleFloppyDriveCombo(hWnd, DRIVE_2, LOWORD(wparam));
-				FrameRefreshStatus(DRAW_BUTTON_DRIVES);
+				GetFrame().FrameRefreshStatus(DRAW_BUTTON_DRIVES | DRAW_DISK_STATUS);
 			}
 			break;
 		case IDC_COMBO_HDD1:
@@ -413,7 +412,7 @@ UINT CPageDisk::RemovalConfirmation(UINT uCommand)
 
 	if (bMsgBox)
 	{
-		int nRes = MessageBox(g_hFrameWindow, szText, TEXT("Eject/Unplug Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
+		int nRes = GetFrame().FrameMessageBox(szText, TEXT("Eject/Unplug Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
 		if (nRes == IDNO)
 			uCommand = 0;
 	}
