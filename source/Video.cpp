@@ -207,10 +207,14 @@ BYTE Video::VideoSetMode(WORD pc, WORD address, BYTE write, BYTE d, ULONG uExecu
 		case 0x5F: if (!IS_APPLE2) g_uVideoMode &= ~VF_DHIRES;  break;
 	}
 
-	if (vidHD && vidHD->IsSHR())
+	if (vidHD && vidHD->IsSHR()) {
 		g_uVideoMode |= VF_SHR;
-	else
+		m_bSDHR = vidHD->IsSDHR();
+	}
+	else {
 		g_uVideoMode &= ~VF_SHR;
+		m_bSDHR = false;
+	}
 
 	if (!IS_APPLE2)
 		RGB_SetVideoMode(address);
@@ -226,6 +230,10 @@ BYTE Video::VideoSetMode(WORD pc, WORD address, BYTE write, BYTE d, ULONG uExecu
 }
 
 //===========================================================================
+
+bool Video::VideoGetSDHRState(void) {
+	return m_bSDHR;
+}
 
 bool Video::VideoGetSW80COL(void)
 {

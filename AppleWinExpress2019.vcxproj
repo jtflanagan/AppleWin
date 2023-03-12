@@ -130,6 +130,7 @@
     <ClInclude Include="source\Utilities.h" />
     <ClInclude Include="source\Video.h" />
     <ClInclude Include="Source\VidHD.h" />
+    <ClInclude Include="source\VidHDSdhr.h" />
     <ClInclude Include="source\W5100.h" />
     <ClInclude Include="source\Windows\AppleWin.h" />
     <ClInclude Include="source\Windows\DirectInput.h" />
@@ -261,6 +262,7 @@
     <ClCompile Include="source\Utilities.cpp" />
     <ClCompile Include="source\Video.cpp" />
     <ClCompile Include="Source\VidHD.cpp" />
+    <ClCompile Include="source\VidHDSdhr.cpp" />
     <ClCompile Include="source\Windows\AppleWin.cpp" />
     <ClCompile Include="source\Windows\DirectInput.cpp" />
     <ClCompile Include="source\Windows\HookFilter.cpp" />

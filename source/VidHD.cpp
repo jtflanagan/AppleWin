@@ -53,6 +53,7 @@
 #include "Video.h"
 #include "VidHD.h"
 #include "YamlHelper.h"
+#include "../CardManager.h"
 
 void VidHDCard::Reset(const bool powerCycle)
 {
@@ -171,6 +172,26 @@ void VidHDCard::UpdateSHRCell(bool is640Mode, bool isColorFillMode, uint16_t add
 		a >>= 8;
 	}
 }
+
+void VidHDCard::SDHRWritePixels(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress) {
+	if (!m_pVidHDSdhr) {
+		m_pVidHDSdhr = new VidHDSdhr();
+	}
+	m_pVidHDSdhr->ProcessCommands();
+	for (UINT i = 0; i < 16; ++i) {
+		pVideoAddress[i] = m_pVidHDSdhr->GetPixel(vert, horz);
+	}
+}
+
+void VidHDCard::UpdateSDHRCell(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress) {
+	VidHDCard* vidHD = NULL;
+	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+	else
+		return;
+	vidHD->SDHRWritePixels(vert, horz, pVideoAddress);
+}
+
 
 //===========================================================================
 

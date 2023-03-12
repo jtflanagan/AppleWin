@@ -2,9 +2,15 @@
 
 #include "Card.h"
 #include "Interface.h"
+#include "VidHDSdhr.h"
+
+#pragma pack(push)
+#pragma pack(1) // ensure structs are packed
 
 class VidHDCard : public Card
 {
+
+#pragma pack(pop)
 public:
 	VidHDCard(UINT slot) :
 		Card(CT_VidHD, slot)
@@ -14,10 +20,15 @@ public:
 		m_NEWVIDEO = 0;
 		m_BORDERCOLOR = 0;
 		m_SHADOW = 0;
+		m_pVidHDSdhr = NULL;
 
 		GetVideo().SetVidHD(true);
 	}
-	virtual ~VidHDCard(void) {}
+	virtual ~VidHDCard(void) {
+		if (m_pVidHDSdhr) {
+			delete m_pVidHDSdhr;
+		}
+	}
 
 	virtual void Destroy(void) {}
 	virtual void Reset(const bool powerCycle);
@@ -29,10 +40,14 @@ public:
 	void VideoIOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 
 	bool IsSHR(void) { return (m_NEWVIDEO & 0xC0) == 0xC0; }	// 11000000 = Enable SHR(b7) | Linearize SHR video memory(b6)
+	bool IsSDHR(void) { return (m_NEWVIDEO & 0x40) == 0x40; }   // override SHR(b4) for SDHR.  This is ugly but easy, fix if we get real support
 	bool IsDHGRBlackAndWhite(void) { return (m_NEWVIDEO & (1 << 5)) ? true : false; }
 	bool IsWriteAux(void);
 
+	void SDHRWritePixels(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress);
+
 	static void UpdateSHRCell(bool is640Mode, bool isColorFillMode, uint16_t addrPalette, bgra_t* pVideoAddress, uint32_t a);
+	static void UpdateSDHRCell(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress);
 
 	static const std::string& GetSnapshotCardName(void);
 	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
@@ -45,4 +60,6 @@ private:
 	BYTE m_NEWVIDEO;
 	BYTE m_BORDERCOLOR;
 	BYTE m_SHADOW;
+	VidHDSdhr* m_pVidHDSdhr;
+
 };
