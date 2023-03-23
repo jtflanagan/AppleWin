@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 #include <Windows.h>		// to inject the incoming Gamelink inputs into Applewin
+#include "Interface.h"
 #include "Windows/Win32Frame.h"
 #include "Windows/AppleWin.h"
 #include "Memory.h"
@@ -260,7 +261,8 @@ void RemoteControlManager::getInput()
 		if (iVolNow != iOldVolumeLevel)
 		{
 			SpkrSetVolume(iVolNow, iVolMax);
-			MB_SetVolume(iVolNow, iVolMax);
+			GetCardMgr().GetMockingboardCardMgr().SetVolume(iVolNow, iVolMax);
+
 			iOldVolumeLevel = (UINT8)SpkrGetVolume();
 		}
 
