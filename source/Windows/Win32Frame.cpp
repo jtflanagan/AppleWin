@@ -471,6 +471,9 @@ void Win32Frame::VideoPresentScreen(void)
 			xSrc, ySrc,
 			video.GetFrameBufferBorderlessWidth(), video.GetFrameBufferBorderlessHeight(),
 			SRCCOPY);
+
+		if (!g_RemoteControlMgr.isTrackOnlyEnabled())
+			g_RemoteControlMgr.sendOutput(g_pFramebufferinfo, video.GetFrameBuffer());	// RIK
 	}
 
 #ifdef NO_DIRECT_X

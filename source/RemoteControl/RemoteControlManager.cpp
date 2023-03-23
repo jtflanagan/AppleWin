@@ -78,7 +78,6 @@ struct Info_HDV {
 Info_HDV g_infoHdv = { std::string(UNKNOWN_VOLUME_NAME), 0 };
 
 UINT iCurrentTicks;						// Used to check the repeat interval
-UINT8 *pReorderedFramebufferbits = new UINT8[GetVideo().GetFrameBufferWidth() * GetVideo().GetFrameBufferHeight() * sizeof(bgra_t)]; // the frame realigned properly
 UINT8 iOldVolumeLevel;
 static std::unordered_set<UINT8> exclusionSet;		// list of VK codes that will not be passed through to Applewin
 
@@ -396,33 +395,17 @@ void RemoteControlManager::sendOutput(LPBITMAPINFO g_pFramebufferinfo, UINT8 *g_
 			return;
 		}
 
-		UINT fbSize = GetVideo().GetFrameBufferWidth() * GetVideo().GetFrameBufferHeight() * sizeof(bgra_t);
-		ZeroMemory(pReorderedFramebufferbits, fbSize);
-
-		if (g_pFramebufferbits != NULL)
-		{
-			reverseScanlines
-			(
-				pReorderedFramebufferbits,
-				g_pFramebufferbits,
-				g_pFramebufferinfo->bmiHeader.biWidth,
-				g_pFramebufferinfo->bmiHeader.biHeight,
-				g_pFramebufferinfo->bmiHeader.biBitCount / 8
-			);
-		}
-
-
 		CMouseInterface* pMouseCard = GetCardMgr().GetMouseCard();
 		// Do not use pMouseCard->isEnabled() or equivalent, since it'll return false
 		// when Applewin is not in focus, and that's exactly what it'll be.
 		g_gamelink.want_mouse = (bool)pMouseCard;
-		// TODO: only send the framebuffer out when not in trackonly_mode
+
 		GameLink::Out(
 			(UINT16)g_pFramebufferinfo->bmiHeader.biWidth,
 			(UINT16)g_pFramebufferinfo->bmiHeader.biHeight,
 			1.0,								// image ratio
 			g_gamelink.want_mouse,
-			(const UINT8*)pReorderedFramebufferbits,
+			(const UINT8*)g_pFramebufferbits,
 			MemGetBankPtr(0));					// Main memory pointer
 	}
 }
