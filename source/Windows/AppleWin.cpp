@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "Windows/AppleWin.h"
+#include "Windows/HookFilter.h"
 #include "Interface.h"
 #include "Utilities.h"
 #include "CmdLine.h"
@@ -41,8 +42,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Registry.h"
 #include "Riff.h"
 #include "SaveState.h"
+#include "SerialComms.h"
 #include "SoundCore.h"
 #include "Speaker.h"
+#include "LanguageCard.h"
+#include "CardManager.h"
 #ifdef USE_SPEECH_API
 #include "Speech.h"
 #endif
@@ -53,7 +57,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Configuration/About.h"
 #include "Configuration/PropertySheet.h"
-#include "Tfe/tfe.h"
 
 std::string g_pProgramName = "Unknown";		// RIK -- Name of the emulated program
 std::string g_pProgramSig = "000-00000000";	// RIK -- Canonical signature of the emulated program using format: page-cnc32
@@ -64,7 +67,9 @@ RemoteControlManager g_RemoteControlMgr;
 static bool g_bLoadedSaveState = false;
 static bool g_bSysClkOK = false;
 
-bool      g_bRestartFullScreen = false;
+bool g_bRestartFullScreen = false;
+
+static bool g_fullScreenResolutionChangedByUser = false;
 
 //===========================================================================
 
@@ -78,9 +83,19 @@ void Win32Frame::SetLoadedSaveStateFlag(const bool bFlag)
 	g_bLoadedSaveState = bFlag;
 }
 
+bool GetHookAltTab(void)
+{
+	return g_bHookAltTab;
+}
+
 bool GetHookAltGrControl(void)
 {
 	return g_bHookAltGrControl;
+}
+
+bool GetFullScreenResolutionChangedByUser(void)
+{
+	return g_fullScreenResolutionChangedByUser;
 }
 
 static void ResetToLogoMode(void)
@@ -169,7 +184,7 @@ static void ContinueExecution(void)
 	const bool bWasFullSpeed = g_bFullSpeed;
 	g_bFullSpeed =	 (g_dwSpeed == SPEED_MAX) || 
 					 bScrollLock_FullSpeed ||
-					 (GetCardMgr().GetDisk2CardMgr().IsConditionForFullSpeed() && !Spkr_IsActive() && !MB_IsActive()) ||
+					 (GetCardMgr().GetDisk2CardMgr().IsConditionForFullSpeed() && !Spkr_IsActive() && !GetCardMgr().GetMockingboardCardMgr().IsActive()) ||
 					 IsDebugSteppingAtFullSpeed();
 
 	if (g_bFullSpeed)
@@ -178,7 +193,7 @@ static void ContinueExecution(void)
 			GetFrame().VideoRedrawScreenDuringFullSpeed(0, true);	// Init for full-speed mode
 
 		// Don't call Spkr_Mute() - will get speaker clicks
-		MB_Mute();
+		GetCardMgr().GetMockingboardCardMgr().MuteControl(true);
 		SysClk_StopTimer();
 #ifdef USE_SPEECH_API
 		g_Speech.Reset();			// TODO: Put this on a timer (in emulated cycles)... otherwise CATALOG cuts out
@@ -196,7 +211,7 @@ static void ContinueExecution(void)
 			GetFrame().VideoRedrawScreenAfterFullSpeed(g_dwCyclesThisFrame);
 
 		// Don't call Spkr_Unmute()
-		MB_Unmute();
+		GetCardMgr().GetMockingboardCardMgr().MuteControl(false);
 		SysClk_StartTimerUsec(nExecutionPeriodUsec);
 
 		// Switch to higher priority, eg. for audio (BUG #015394)
@@ -216,10 +231,7 @@ static void ContinueExecution(void)
 	const DWORD uActualCyclesExecuted = CpuExecute(uCyclesToExecute, bVideoUpdate);
 	g_dwCyclesThisFrame += uActualCyclesExecuted;
 
-	GetCardMgr().GetDisk2CardMgr().UpdateDriveState(uActualCyclesExecuted);
-	JoyUpdateButtonLatch(nExecutionPeriodUsec);	// Button latch time is independent of CPU clock frequency
-	PrintUpdate(uActualCyclesExecuted);
-	MB_PeriodicUpdate(uActualCyclesExecuted);
+	GetCardMgr().Update(uActualCyclesExecuted);
 
 	//
 
@@ -345,7 +357,7 @@ static void GetProgramDirectory(void)
 	int loop = g_sProgramDir.size();
 	while (loop--)
 	{
-		if ((g_sProgramDir[loop] == TEXT('\\')) || (g_sProgramDir[loop] == TEXT(':')))
+		if ((g_sProgramDir[loop] == TEXT(PATH_SEPARATOR)) || (g_sProgramDir[loop] == TEXT(':')))
 		{
 			g_sProgramDir.resize(loop + 1);  // this reduces the size
 			break;
@@ -357,18 +369,17 @@ static void GetProgramDirectory(void)
 
 void RegisterExtensions(void)
 {
-	TCHAR szCommandTmp[MAX_PATH];
-	GetModuleFileName((HMODULE)0,szCommandTmp,MAX_PATH);
+	char szModuleFileName[MAX_PATH];
+	GetModuleFileName(static_cast<HMODULE>(NULL), szModuleFileName, sizeof(szModuleFileName));
 
-	TCHAR command[MAX_PATH];
-	wsprintf(command, "\"%s\"",	szCommandTmp);	// Wrap	path & filename	in quotes &	null terminate
+	// Wrap	path & filename	in quotes &	null terminate
+	std::string command = std::string("\"") + szModuleFileName + '"';
 
-	TCHAR icon[MAX_PATH];
-	wsprintf(icon,TEXT("%s,1"),(LPCTSTR)command);
+	std::string const icon = command + ",1";
 
-	strcat(command,TEXT(" \"%1\""));			// Append "%1"
-//	strcat(command,TEXT("-d1 %1\""));			// Append "%1"
-//	sprintf(command, "\"%s\" \"-d1 %%1\"", szCommandTmp);	// Wrap	path & filename	in quotes &	null terminate
+	command += " \"%1\"";			// Append ' "%1"'
+//	command += " -d1 \"%1\"";		// Append ' -d1 "%1"'
+//	command += " \"-d1 %1\"";		// Append ' "-d1 %1"'
 
 	// NB. Registry access to HKLM typically results in ErrorCode 5(ACCESS DENIED), as UAC requires elevated permissions (Run as administrator).
 	// . HKEY_CLASSES_ROOT\CLSID is a merged view of HKLM\SOFTWARE\Classes and HKCU\SOFTWARE\Classes
@@ -408,13 +419,13 @@ void RegisterExtensions(void)
 	pValueName = "DiskImage";
 	res = RegSetValue(HKEY_CLASSES_ROOT,
 				pValueName,
-				REG_SZ,"Disk Image",0);
+				REG_SZ, "Disk Image", 0);
 	if (res != NOERROR) LogFileOutput("RegSetValue(%s) failed (0x%08X)\n", pValueName, res);
 
 	pValueName = "DiskImage\\DefaultIcon";
 	res = RegSetValue(HKEY_CLASSES_ROOT,
 				pValueName,
-				REG_SZ,icon,0);
+				REG_SZ, icon.c_str(), 0);
 	if (res != NOERROR) LogFileOutput("RegSetValue(%s) failed (0x%08X)\n", pValueName, res);
 
 // This key can interfere....
@@ -423,26 +434,26 @@ void RegisterExtensions(void)
 	pValueName = "DiskImage\\shell\\open\\command";
 	res = RegSetValue(HKEY_CLASSES_ROOT,
 				pValueName,
-				REG_SZ,command,_tcslen(command)+1);
+				REG_SZ, command.c_str(), command.length() + 1);
 	if (res != NOERROR) LogFileOutput("RegSetValue(%s) failed (0x%08X)\n", pValueName, res);
 
 	pValueName = "DiskImage\\shell\\open\\ddeexec";
 	res = RegSetValue(HKEY_CLASSES_ROOT,
 				pValueName,
-				REG_SZ,"%1",3);
+				REG_SZ, "%1", 3);
 	if (res != NOERROR) LogFileOutput("RegSetValue(%s) failed (0x%08X)\n", pValueName, res);
 
 	pValueName = "DiskImage\\shell\\open\\ddeexec\\application";
 	res = RegSetValue(HKEY_CLASSES_ROOT,
 				pValueName,
-				REG_SZ,"applewin",_tcslen("applewin")+1);
-//				REG_SZ,szCommandTmp,_tcslen(szCommandTmp)+1);
+				REG_SZ, "applewin", strlen("applewin") + 1);
+//				REG_SZ, szModuleFileName, strlen(szModuleFileName)+1);
 	if (res != NOERROR) LogFileOutput("RegSetValue(%s) failed (0x%08X)\n", pValueName, res);
 
 	pValueName = "DiskImage\\shell\\open\\ddeexec\\topic";
 	res = RegSetValue(HKEY_CLASSES_ROOT,
 				pValueName,
-				REG_SZ,"system",_tcslen("system")+1);
+				REG_SZ, "system", strlen("system") + 1);
 	if (res != NOERROR) LogFileOutput("RegSetValue(%s) failed (0x%08X)\n", pValueName, res);
 }
 
@@ -495,113 +506,6 @@ static void RegisterHotKeys(void)
 
 //---------------------------------------------------------------------------
 
-static HINSTANCE g_hinstDLL = 0;
-static HHOOK g_hhook = 0;
-
-static HANDLE g_hHookThread = NULL;
-static DWORD g_HookThreadId = 0;
-
-// Pre: g_hFrameWindow must be valid
-static bool HookFilterForKeyboard()
-{
-	g_hinstDLL = LoadLibrary(TEXT("HookFilter.dll"));
-
-	_ASSERT(GetFrame().g_hFrameWindow);
-
-	typedef void (*RegisterHWNDProc)(HWND, bool, bool);
-	RegisterHWNDProc RegisterHWND = (RegisterHWNDProc) GetProcAddress(g_hinstDLL, "RegisterHWND");
-	if (RegisterHWND)
-		RegisterHWND(GetFrame().g_hFrameWindow, g_bHookAltTab, g_bHookAltGrControl);
-
-	HOOKPROC hkprcLowLevelKeyboardProc = (HOOKPROC) GetProcAddress(g_hinstDLL, "LowLevelKeyboardProc");
-
-	g_hhook = SetWindowsHookEx(
-						WH_KEYBOARD_LL,
-						hkprcLowLevelKeyboardProc,
-						g_hinstDLL,
-						0);
-
-	if (g_hhook != 0 && GetFrame().g_hFrameWindow != 0)
-		return true;
-
-	std::string msg("Failed to install hook filter for system keys");
-
-	DWORD dwErr = GetLastError();
-	GetFrame().FrameMessageBox(msg.c_str(), "Warning", MB_ICONASTERISK | MB_OK);
-
-	msg += "\n";
-	LogFileOutput(msg.c_str());
-	return false;
-}
-
-static void UnhookFilterForKeyboard()
-{
-	UnhookWindowsHookEx(g_hhook);
-	FreeLibrary(g_hinstDLL);
-}
-
-static DWORD WINAPI HookThread(LPVOID lpParameter)
-{
-	if (!HookFilterForKeyboard())
-		return -1;
-
-	MSG msg;
-	while(GetMessage(&msg, NULL, 0, 0) > 0)
-	{
-		if (msg.message == WM_QUIT)
-			break;
-
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-
-	UnhookFilterForKeyboard();
-	return 0;
-}
-
-static bool InitHookThread()
-{
-	g_hHookThread = CreateThread(NULL,			// lpThreadAttributes
-								0,				// dwStackSize
-								(LPTHREAD_START_ROUTINE) HookThread,
-								0,				// lpParameter
-								0,				// dwCreationFlags : 0 = Run immediately
-								&g_HookThreadId);	// lpThreadId
-	if (g_hHookThread == NULL)
-		return false;
-
-	return true;
-}
-
-static void UninitHookThread()
-{
-	if (g_hHookThread)
-	{
-		if (!PostThreadMessage(g_HookThreadId, WM_QUIT, 0, 0))
-		{
-			_ASSERT(0);
-			return;
-		}
-
-		do
-		{
-			DWORD dwExitCode;
-			if (GetExitCodeThread(g_hHookThread, &dwExitCode))
-			{
-				if(dwExitCode == STILL_ACTIVE)
-					Sleep(10);
-				else
-					break;
-			}
-		}
-		while(1);
-
-		CloseHandle(g_hHookThread);
-		g_hHookThread = NULL;
-		g_HookThreadId = 0;
-	}
-}
-
 static void ExceptionHandler(const char* pError)
 {
 	GetFrame().FrameMessageBox(
@@ -624,7 +528,7 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 	char startDir[_MAX_PATH];
 	GetCurrentDirectory(sizeof(startDir), startDir);
 	g_sStartDir = startDir;
-	if (*(g_sStartDir.end()-1) != '\\') g_sStartDir += '\\';
+	if (*(g_sStartDir.end()-1) != PATH_SEPARATOR) g_sStartDir += PATH_SEPARATOR;
 
 	if (!ProcessCmdLine(lpCmdLine))
 		return 0;
@@ -648,17 +552,14 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 
 			if (g_bRestart)
 			{
-				g_cmdLine.bSetFullScreen = g_bRestartFullScreen;
+				g_cmdLine.setFullScreen = g_bRestartFullScreen ? 1 : 0;
 				g_bRestartFullScreen = false;
-
-				MB_Reset(true);
-				LogFileOutput("Main: MB_Reset()\n");
 
 				CMouseInterface* pMouseCard = GetCardMgr().GetMouseCard();
 				if (pMouseCard)
 				{
 					// dtor removes event from g_SynchronousEventMgr - do before g_SynchronousEventMgr.Reset()
-					GetCardMgr().Remove( pMouseCard->GetSlot() );
+					GetCardMgr().Remove( pMouseCard->GetSlot(), false );
 					LogFileOutput("Main: CMouseInterface::dtor\n");
 				}
 
@@ -671,22 +572,19 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 
 			if (g_bHookSystemKey)
 			{
-				UninitHookThread();
+				GetHookFilter().UninitHookThread();
 				LogFileOutput("Main: UnhookFilterForKeyboard()\n");
 			}
 		}
 		while (g_bRestart);
+
+		Shutdown();
 	}
-	catch(std::runtime_error exception)
-	{
-		ExceptionHandler(exception.what());
-	}
-	catch(std::exception exception)
+	catch (const std::exception& exception)
 	{
 		ExceptionHandler(exception.what());
 	}
 
-	Shutdown();
 	return 0;
 }
 
@@ -725,20 +623,23 @@ static void GetAppleWinVersion(void)
 		delete [] pVerInfoBlock;
     }
 
-	LogFileOutput("AppleWin version: %s\n",  VERSIONSTRING);
+	LogFileOutput("AppleWin version: %s\n",  g_VERSIONSTRING.c_str());
 }
 
 // DO ONE-TIME INITIALIZATION
 static void OneTimeInitialization(HINSTANCE passinstance)
 {
-#if 0
-#ifdef RIFF_SPKR
-	RiffInitWriteFile("Spkr.wav", SPKR_SAMPLE_RATE, 1);
-#endif
-#ifdef RIFF_MB
-	RiffInitWriteFile("Mockingboard.wav", 44100, 2);
-#endif
-#endif
+	// Currently only support one RIFF file
+	if (!g_cmdLine.wavFileSpeaker.empty())
+	{
+		if (RiffInitWriteFile(g_cmdLine.wavFileSpeaker.c_str(), SPKR_SAMPLE_RATE, 1))
+			Spkr_OutputToRiff();
+	}
+	else if (!g_cmdLine.wavFileMockingboard.empty())
+	{
+		if (RiffInitWriteFile(g_cmdLine.wavFileMockingboard.c_str(), 44100, 2))
+			GetCardMgr().GetMockingboardCardMgr().OutputToRiff();
+	}
 
 	// Initialize COM - so we can use CoCreateInstance
 	// . DSInit() & DIMouse::DirectInputInit are done when g_hFrameWindow is created (WM_CREATE)
@@ -776,13 +677,18 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 // DO INITIALIZATION THAT MUST BE REPEATED FOR A RESTART
 static void RepeatInitialization(void)
 {
+		GetVideo().SetVidHD(false);	// Set true later only if VidHDCard is instantiated
 		ResetToLogoMode();
 
 		// NB. g_OldAppleWinVersion needed by LoadConfiguration() -> Config_Load_Video()
 		const bool bShowAboutDlg = CheckOldAppleWinVersion();	// Post: g_OldAppleWinVersion
 
-		LoadConfiguration();
-		LogFileOutput("Main: LoadConfiguration()\n");
+		// Load configuration from Registry (+ will insert cards)
+		{
+			bool loadImages = g_cmdLine.szSnapshotName == NULL;	// don't load floppy/harddisk images if a snapshot is to be loaded later on
+			LoadConfiguration(loadImages);
+			LogFileOutput("Main: LoadConfiguration()\n");
+		}
 
 		if (g_cmdLine.model != A2TYPE_MAX)
 			SetApple2Type(g_cmdLine.model);
@@ -817,7 +723,7 @@ static void RepeatInitialization(void)
 #endif
 		if (g_cmdLine.uSaturnBanks)
 		{
-			SetSaturnMemorySize(g_cmdLine.uSaturnBanks);	// Set number of banks before constructing Saturn card
+			Saturn128K::SetSaturnMemorySize(g_cmdLine.uSaturnBanks);	// Set number of banks before constructing Saturn card
 			SetExpansionMemType(CT_Saturn128K);
 			g_cmdLine.uSaturnBanks = 0;		// Don't reapply after a restart
 		}
@@ -834,43 +740,100 @@ static void RepeatInitialization(void)
 			// Reapply after a restart - TODO: grey-out the Config UI for "Swap 0/1" when this cmd line is passed in
 		}
 
-		DebugInitialize();
-		LogFileOutput("Main: DebugInitialize()\n");
-
 		JoyInitialize();
 		LogFileOutput("Main: JoyInitialize()\n");
-
-		GetFrame().Initialize(); // g_pFramebufferinfo been created now & COM init'ed
-		LogFileOutput("Main: VideoInitialize()\n");
-
-		LogFileOutput("Main: FrameCreateWindow() - pre\n");
-		Win32Frame::GetWin32Frame().FrameCreateWindow();	// GetFrame().g_hFrameWindow is now valid
-		LogFileOutput("Main: FrameCreateWindow() - post\n");
 
 		// Init palette color
 		VideoSwitchVideocardPalette(RGB_GetVideocard(), GetVideo().GetVideoType());
 
 		// Allow the 4 hardcoded slots to be configurated as empty
-		// NB. this state is not persisted to the Registry/conf.ini (just as '-s7 empty' isn't)
-		// TODO: support bSlotEmpty[] for slots: 0,4,5
-		if (g_cmdLine.bSlotEmpty[SLOT1])
-			GetCardMgr().Remove(SLOT1);
-		if (g_cmdLine.bSlotEmpty[SLOT2])
-			GetCardMgr().Remove(SLOT2);
-		if (g_cmdLine.bSlotEmpty[SLOT3])
-			GetCardMgr().Remove(SLOT3);
-		if (g_cmdLine.bSlotEmpty[SLOT6])
-			GetCardMgr().Remove(SLOT6);
+		// NB. this state *is* persisted to the Registry/conf.ini (just like '-s7 empty' is)
+		// TODO: support bSlotEmpty[] for slots: 0
+		for (UINT i = SLOT1; i < NUM_SLOTS; i++)
+		{
+			if (g_cmdLine.bSlotEmpty[i])
+				GetCardMgr().Remove(i);
+		}
+
+		if (g_cmdLine.supportDCD && GetCardMgr().IsSSCInstalled())
+		{
+			GetCardMgr().GetSSC()->SupportDCD(true);
+		}
+
+		if (g_cmdLine.slotInsert[SLOT1] != CT_Empty && g_cmdLine.slotInsert[SLOT1] == CT_GenericPrinter)	// For now just support Printer card in slot 1
+		{
+			GetCardMgr().Insert(SLOT1, g_cmdLine.slotInsert[SLOT1]);
+		}
+
+		if (g_cmdLine.slotInsert[SLOT2] != CT_Empty && g_cmdLine.slotInsert[SLOT2] == CT_SSC)	// For now just support SSC in slot 2
+		{
+			GetCardMgr().Insert(SLOT2, g_cmdLine.slotInsert[SLOT2]);
+		}
+
+		if (g_cmdLine.enableDumpToRealPrinter && GetCardMgr().IsParallelPrinterCardInstalled())
+		{
+			GetCardMgr().GetParallelPrinterCard()->SetEnableDumpToRealPrinter(true);
+		}
+
+		if (g_cmdLine.slotInsert[SLOT3] != CT_Empty && g_cmdLine.slotInsert[SLOT3] == CT_VidHD)	// For now just support VidHD in slot 3
+		{
+			GetCardMgr().Insert(SLOT3, g_cmdLine.slotInsert[SLOT3]);
+		}
 
 		if (g_cmdLine.slotInsert[SLOT5] != CT_Empty)
 		{
-			if (GetCardMgr().QuerySlot(SLOT4) == CT_MockingboardC && g_cmdLine.slotInsert[SLOT5] != CT_MockingboardC)	// Currently MB occupies slot4+5 when enabled
-			{
-				GetCardMgr().Remove(SLOT4);
-				GetCardMgr().Remove(SLOT5);
-			}
+			if (GetCardMgr().QuerySlot(SLOT5) != CT_Disk2)	// Ignore if already got Disk2 in slot 5
+				GetCardMgr().Insert(SLOT5, g_cmdLine.slotInsert[SLOT5]);
+		}
 
-			GetCardMgr().Insert(SLOT5, g_cmdLine.slotInsert[SLOT5]);
+		if (g_cmdLine.slotInsert[SLOT6] == CT_Disk2)	// For now just support Disk2 in slot 6
+		{
+			if (GetCardMgr().QuerySlot(SLOT6) != CT_Disk2)	// Ignore if already got Disk2 in slot 6
+				GetCardMgr().Insert(SLOT6, g_cmdLine.slotInsert[SLOT6]);
+		}
+
+		if (g_cmdLine.slotInsert[SLOT7] != CT_Empty)
+		{
+			if (GetCardMgr().QuerySlot(SLOT7) != CT_GenericHDD)	// Ignore if already got HDC in slot 7
+				GetCardMgr().Insert(SLOT7, g_cmdLine.slotInsert[SLOT7]);
+		}
+
+		for (UINT i = SLOT0; i < NUM_SLOTS; i++)
+		{
+			if (GetCardMgr().QuerySlot(i) == CT_Disk2 && g_cmdLine.slotInfo[i].isDiskII13)
+				dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).SetFirmware13Sector();
+		}
+
+		// Create window after inserting/removing VidHD card (as it affects width & height)
+		{
+			Win32Frame::GetWin32Frame().SetViewportScale(Win32Frame::GetWin32Frame().GetViewportScale(), true);
+
+			GetFrame().Initialize(true); // g_pFramebufferinfo been created now & COM init'ed
+			LogFileOutput("Main: VideoInitialize()\n");
+
+			LogFileOutput("Main: FrameCreateWindow() - pre\n");
+			Win32Frame::GetWin32Frame().FrameCreateWindow();	// GetFrame().g_hFrameWindow is now valid
+			LogFileOutput("Main: FrameCreateWindow() - post\n");
+		}
+
+		// Set best W,H resolution after inserting/removing VidHD card
+		if (g_cmdLine.bestFullScreenResolution || g_cmdLine.userSpecifiedWidth || g_cmdLine.userSpecifiedHeight)
+		{
+			bool res = false;
+			UINT bestWidth = 0, bestHeight = 0;
+
+			if (g_cmdLine.bestFullScreenResolution)
+				res = GetFrame().GetBestDisplayResolutionForFullScreen(bestWidth, bestHeight);
+			else
+				res = GetFrame().GetBestDisplayResolutionForFullScreen(bestWidth, bestHeight, g_cmdLine.userSpecifiedWidth, g_cmdLine.userSpecifiedHeight);
+
+			if (res)
+				LogFileOutput("Best resolution for -fs-width/height=x switch(es): Width=%d, Height=%d\n", bestWidth, bestHeight);
+			else
+				LogFileOutput("Failed to set parameter for -fs-width/height=x switch(es)\n");
+
+			if (res)
+				g_fullScreenResolutionChangedByUser = true;
 		}
 
 		// Pre: may need g_hFrameWindow for MessageBox errors
@@ -878,17 +841,20 @@ static void RepeatInitialization(void)
 		{
 			bool temp = false;
 			InsertFloppyDisks(SLOT5, g_cmdLine.szImageName_drive[SLOT5], g_cmdLine.driveConnected[SLOT5], temp);
-			//g_cmdLine.szImageName_drive[SLOT5][DRIVE_1] = g_cmdLine.szImageName_drive[SLOT5][DRIVE_2] = NULL;	// *Do* insert on a restart (since no way they could have changed)
+			g_cmdLine.szImageName_drive[SLOT5][DRIVE_1] = g_cmdLine.szImageName_drive[SLOT5][DRIVE_2] = NULL;	// Don't insert on a restart
 
 			InsertFloppyDisks(SLOT6, g_cmdLine.szImageName_drive[SLOT6], g_cmdLine.driveConnected[SLOT6], g_cmdLine.bBoot);
 			g_cmdLine.szImageName_drive[SLOT6][DRIVE_1] = g_cmdLine.szImageName_drive[SLOT6][DRIVE_2] = NULL;	// Don't insert on a restart
 
-			InsertHardDisks(g_cmdLine.szImageName_harddisk, g_cmdLine.bBoot);
-			g_cmdLine.szImageName_harddisk[HARDDISK_1] = g_cmdLine.szImageName_harddisk[HARDDISK_2] = NULL;	// Don't insert on a restart
+			InsertHardDisks(SLOT5, g_cmdLine.szImageName_harddisk[SLOT5], temp);
+			g_cmdLine.szImageName_harddisk[SLOT5][HARDDISK_1] = g_cmdLine.szImageName_harddisk[SLOT5][HARDDISK_2] = NULL;	// Don't insert on a restart
 
-			if (g_cmdLine.bSlotEmpty[7])
+			InsertHardDisks(SLOT7, g_cmdLine.szImageName_harddisk[SLOT7], g_cmdLine.bBoot);
+			g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_1] = g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_2] = NULL;	// Don't insert on a restart
+
+			if (g_cmdLine.bSlotEmpty[SLOT7])
 			{
-				HD_SetEnabled(false);		// Disable HDD controller, but don't persist this to Registry/conf.ini (consistent with other '-sn empty' cmds)
+				GetCardMgr().Remove(SLOT7);	// Disable HDD controller, and persist this to Registry/conf.ini (consistent with other '-sn empty' cmds)
 				Snapshot_UpdatePath();		// If save-state's filename is a harddisk, and the floppy is in the same path, then the filename won't be updated
 			}
 		}
@@ -900,6 +866,13 @@ static void RepeatInitialization(void)
 		if (g_cmdLine.bRemoveNoSlotClock)
 			MemRemoveNoSlotClock();
 
+		if (g_cmdLine.noDisk2StepperDefer)
+			GetCardMgr().GetDisk2CardMgr().SetStepperDefer(false);
+
+		// Call DebugInitialize() after SetCurrentImageDir()
+		DebugInitialize();
+		LogFileOutput("Main: DebugInitialize()\n");
+
 		MemInitialize();
 		LogFileOutput("Main: MemInitialize()\n");
 
@@ -907,9 +880,9 @@ static void RepeatInitialization(void)
 		if (bShowAboutDlg)
 		{
 			if (!AboutDlg())
-				g_cmdLine.bShutdown = true;															// Close everything down
+				g_cmdLine.bShutdown = true;											// Close everything down
 			else
-				RegSaveString(TEXT(REG_CONFIG), TEXT(REGVALUE_VERSION), 1, VERSIONSTRING);	// Only save version after user accepts license
+				RegSaveString(REG_CONFIG, REGVALUE_VERSION, TRUE, g_VERSIONSTRING);	// Only save version after user accepts license
 		}
 
 		if (g_bCapturePrintScreenKey)
@@ -920,14 +893,15 @@ static void RepeatInitialization(void)
 
 		if (g_bHookSystemKey)
 		{
-			if (InitHookThread())	// needs valid g_hFrameWindow (for message pump)
+			if (GetHookFilter().InitHookThread())	// needs valid g_hFrameWindow (for message pump)
 				LogFileOutput("Main: HookFilterForKeyboard()\n");
 		}
 
 		// Need to test if it's safe to call ResetMachineState(). In the meantime, just call Disk2Card's Reset():
 		GetCardMgr().GetDisk2CardMgr().Reset(true);	// Switch from a booting A][+ to a non-autostart A][, so need to turn off floppy motor
 		LogFileOutput("Main: DiskReset()\n");
-		HD_Reset();		// GH#515
+		if (GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
+			GetCardMgr().GetRef(SLOT7).Reset(true);	// GH#515
 		LogFileOutput("Main: HDDReset()\n");
 
 		if (!g_bSysClkOK)
@@ -947,13 +921,10 @@ static void RepeatInitialization(void)
 			g_cmdLine.bShutdown = true;
 		}
 
-		tfe_init();
-		LogFileOutput("Main: tfe_init()\n");
-
 		if (g_cmdLine.szSnapshotName)
 		{
 			std::string strPathname(g_cmdLine.szSnapshotName);
-			int nIdx = strPathname.find_last_of('\\');
+			int nIdx = strPathname.find_last_of(PATH_SEPARATOR);
 			if (nIdx >= 0 && nIdx+1 < (int)strPathname.length())	// path exists?
 			{
 				const std::string strPath = strPathname.substr(0, nIdx+1);
@@ -986,25 +957,10 @@ static void RepeatInitialization(void)
 		}
 		else
 		{
-			if (g_cmdLine.bestWidth && g_cmdLine.bestHeight)
-			{
-				DEVMODE devMode;
-				memset(&devMode, 0, sizeof(devMode));
-				devMode.dmSize = sizeof(devMode);
-				devMode.dmPelsWidth = g_cmdLine.bestWidth;
-				devMode.dmPelsHeight = g_cmdLine.bestHeight;
-				devMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
-
-				DWORD dwFlags = 0;
-				LONG res = ChangeDisplaySettings(&devMode, dwFlags);
-				if (res == 0)
-					g_cmdLine.bChangedDisplayResolution = true;
-			}
-
-			if (g_cmdLine.bSetFullScreen)
+			if (g_cmdLine.setFullScreen > 0)
 			{
 				PostMessage(GetFrame().g_hFrameWindow, WM_USER_FULLSCREEN, 0, 0);
-				g_cmdLine.bSetFullScreen = false;
+				g_cmdLine.setFullScreen = 0;
 			}
 
 			if (g_cmdLine.bBoot)
@@ -1017,8 +973,7 @@ static void RepeatInitialization(void)
 
 static void Shutdown(void)
 {
-	if (g_cmdLine.bChangedDisplayResolution)
-		ChangeDisplaySettings(NULL, 0);	// restore default
+	// NB. WM_CLOSE has already called SetNormalMode() to exit full screen mode & restore default resolution
 
 	// Release COM
 	SysClk_UninitTimer();
@@ -1026,9 +981,6 @@ static void Shutdown(void)
 
 	CoUninitialize();
 	LogFileOutput("Exit: CoUninitialize()\n");
-
-	tfe_shutdown();
-	LogFileOutput("Exit: tfe_shutdown()\n");
 
 	LogDone();
 
@@ -1041,7 +993,7 @@ static void Shutdown(void)
 		CloseHandle(g_hCustomRom);
 
 	if (g_cmdLine.bSlot7EmptyOnExit)
-		UnplugHardDiskControllerCard();
+		GetCardMgr().Remove(SLOT7);
 }
 
 IPropertySheet& GetPropertySheet(void)

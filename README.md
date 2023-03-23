@@ -5,7 +5,7 @@ AppleWin
 
 AppleWin is a fully-featured emulator supporting different Apple II models and clones. A variety of peripheral cards and video display modes are supported (eg. NTSC, RGB); and there's an extensive built-in symbolic debugger.
 
-Peripheral cards supported:
+Peripheral cards and add-on hardware supported:
 - Mockingboard, Phasor and SAM sound cards
 - Disk II interface for floppy disk drives
 - Hard disk controller
@@ -13,18 +13,20 @@ Peripheral cards supported:
 - Parallel printer card
 - Mouse interface
 - Apple IIe Extended 80-Column Text Card and RamWorks III (8MB)
-- RGB cards: Apple's Extended 80-Column Text/AppleColor Adaptor Card, 'Le Chat Mauve' Féline and Eve.
+- RGB cards: Apple's Extended 80-Column Text/AppleColor Adaptor Card and 'Le Chat Mauve' Féline.
 - CP/M SoftCard
-- Uthernet I (ethernet card)
+- Uthernet I and II (ethernet cards)
 - Language Card and Saturn 64/128K for Apple II/II+
+- 4Play and SNES MAX joystick cards
+- VidHD card (functionality limited to IIgs' Super Hi-Res video modes)
 - No Slot Clock (NSC)
 - Support for Grid Cartographer GameLink / Remote Control
 
 This fork of AppleWin is focused on adding remote control capabilities to AppleWin. The first supported remote control technique is "Game Link", created by Grid Cartographer, a commercial map making application. Any 3rd party app can interface with AppleWin using Game Link, which is a relatively simple shared-memory based communication protocol. Documentation on how to code for Game Link is available within the AppleWin source code.
 
-Download latest (stable) release: [AppleWin v1.29.16.0](https://github.com/AppleWin/AppleWin/releases/download/v1.29.16.0/AppleWin1.29.16.0.zip)
+Download latest (stable) release: [AppleWin v1.30.13.0](https://github.com/AppleWin/AppleWin/releases/download/v1.30.13.0/AppleWin1.30.13.0.zip)
 
-Release Notes: [v1.29.16.0](https://github.com/AppleWin/AppleWin/releases/tag/v1.29.16.0)
+Release Notes: [v1.30.13.0](https://github.com/AppleWin/AppleWin/releases/tag/v1.30.13.0)
 
 
 Building
@@ -32,6 +34,11 @@ Building
 To compile from source see:
 
 * [docs/compiling.txt](https://github.com/AppleWin/AppleWin/blob/master/docs/compiling.txt)
+
+
+Contributing
+============
+Please see the [CONTRIBUTING](https://github.com/AppleWin/AppleWin/blob/master/CONTRIBUTING.md) doc before raising new bugs, features and _especially_ PRs.
 
 
 Next Version

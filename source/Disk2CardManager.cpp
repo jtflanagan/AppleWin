@@ -48,13 +48,13 @@ bool Disk2CardManager::IsConditionForFullSpeed(void)
 	return false;
 }
 
-void Disk2CardManager::UpdateDriveState(UINT cycles)
+void Disk2CardManager::Update(const ULONG nExecutedCycles)
 {
 	for (UINT i = 0; i < NUM_SLOTS; i++)
 	{
 		if (GetCardMgr().QuerySlot(i) == CT_Disk2)
 		{
-			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).UpdateDriveState(cycles);
+			GetCardMgr().GetRef(i).Update(nExecutedCycles);
 		}
 	}
 }
@@ -65,7 +65,7 @@ void Disk2CardManager::Reset(const bool powerCycle /*=false*/)
 	{
 		if (GetCardMgr().QuerySlot(i) == CT_Disk2)
 		{
-			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).Reset(powerCycle);
+			GetCardMgr().GetRef(i).Reset(powerCycle);
 		}
 	}
 }
@@ -98,23 +98,10 @@ void Disk2CardManager::LoadLastDiskImage(void)
 {
 	for (UINT i = 0; i < NUM_SLOTS; i++)
 	{
-		if (i != SLOT6) continue;	// FIXME
-
 		if (GetCardMgr().QuerySlot(i) == CT_Disk2)
 		{
 			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).LoadLastDiskImage(DRIVE_1);
 			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).LoadLastDiskImage(DRIVE_2);
-		}
-	}
-}
-
-void Disk2CardManager::Destroy(void)
-{
-	for (UINT i = 0; i < NUM_SLOTS; i++)
-	{
-		if (GetCardMgr().QuerySlot(i) == CT_Disk2)
-		{
-			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).Destroy();
 		}
 	}
 }
@@ -144,4 +131,9 @@ void Disk2CardManager::GetFilenameAndPathForSaveState(std::string& filename, std
 				return;
 		}
 	}
+}
+
+void Disk2CardManager::SetStepperDefer(bool defer)
+{
+	m_stepperDeferred = defer;
 }

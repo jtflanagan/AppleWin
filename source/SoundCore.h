@@ -4,10 +4,6 @@
 
 #define SAFE_RELEASE(p)      { if(p) { (p)->Release(); (p)=NULL; } }
 
-// Define max 1 of these:
-//#define RIFF_SPKR
-//#define RIFF_MB
-
 struct VOICE
 {
 	LPDIRECTSOUNDBUFFER lpDSBvoice;
@@ -34,11 +30,13 @@ struct VOICE
 		bRecentlyActive = false;
 		name = "";
 	}
+
+	~VOICE(void);
 };
 
 typedef VOICE* PVOICE;
 
-bool DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
+HRESULT DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
 					  SHORT** ppDSLockedBuffer0, DWORD* pdwDSLockedBufferSize0,
 					  SHORT** ppDSLockedBuffer1, DWORD* pdwDSLockedBufferSize1);
 

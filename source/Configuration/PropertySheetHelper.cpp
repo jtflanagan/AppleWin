@@ -28,10 +28,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "../Windows/AppleWin.h"	// g_nAppMode, g_uScrollLockToggle, sg_PropertySheet
 #include "../CardManager.h"
+#include "../Memory.h"
 #include "../Disk.h"
 #include "../Log.h"
 #include "../Registry.h"
 #include "../SaveState.h"
+#include "../Interface.h"
+#include "../Uthernet2.h"
+#include "../Tfe/PCapBackend.h"
 
 /*
 Config causing AfterClose msgs:
@@ -125,26 +129,11 @@ void CPropertySheetHelper::SetSlot(UINT slot, SS_CARDTYPE newCardType)
 	if (slot >= NUM_SLOTS)
 		return;
 
-	// Two paths:
-	// 1) Via Config dialog: card not inserted yet
-	// 2) Snapshot_LoadState_v2(): card already inserted
-	if (GetCardMgr().QuerySlot(slot) != newCardType)
-		GetCardMgr().Insert(slot, newCardType);
+	if (GetCardMgr().QuerySlot(slot) == newCardType)
+		return;
 
-	std::string slotText;
-	switch (slot)
-	{
-	case 0: slotText = REGVALUE_SLOT0; break;
-	case 1: slotText = REGVALUE_SLOT1; break;
-	case 2: slotText = REGVALUE_SLOT2; break;
-	case 3: slotText = REGVALUE_SLOT3; break;
-	case 4: slotText = REGVALUE_SLOT4; break;
-	case 5: slotText = REGVALUE_SLOT5; break;
-	case 6: slotText = REGVALUE_SLOT6; break;
-	case 7: slotText = REGVALUE_SLOT7; break;
-	}
-
-	REGSAVE(slotText.c_str(), (DWORD)newCardType);
+	GetCardMgr().Insert(slot, newCardType);
+	GetCardMgr().GetRef(slot).InitializeIO(GetCxRomPeripheral());
 }
 
 // Used by:
@@ -344,22 +333,25 @@ void CPropertySheetHelper::ApplyNewConfig(const CConfigNeedingRestart& ConfigNew
 		SaveCpuType(ConfigNew.m_CpuType);
 	}
 
-	UINT slot = 4;
+	UINT slot = SLOT3;
 	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
 		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
-	slot = 5;
+	// unconditionally save it, as the previous SetSlot might have removed the setting
+	PCapBackend::SetRegistryInterface(slot, ConfigNew.m_tfeInterface);
+	Uthernet2::SetRegistryVirtualDNS(slot, ConfigNew.m_tfeVirtualDNS);
+
+	slot = SLOT4;
 	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
 		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
-//	slot = 7;
-//	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
-//		SetSlot(slot, ConfigNew.m_Slot[slot]);
+	slot = SLOT5;
+	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
+		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
-	if (CONFIG_CHANGED_LOCAL(m_bEnableHDD))
-	{
-		REGSAVE(TEXT(REGVALUE_HDD_ENABLED), ConfigNew.m_bEnableHDD ? 1 : 0);	// TODO: Change to REGVALUE_SLOT7
-	}
+	slot = SLOT7;
+	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
+		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
 	if (CONFIG_CHANGED_LOCAL(m_bEnableTheFreezesF8Rom))
 	{
@@ -372,6 +364,14 @@ void CPropertySheetHelper::ApplyNewConfig(const CConfigNeedingRestart& ConfigNew
 	}
 }
 
+void CPropertySheetHelper::ApplyNewConfigFromSnapshot(const CConfigNeedingRestart& ConfigNew)
+{
+	SaveComputerType(ConfigNew.m_Apple2Type);
+	SaveCpuType(ConfigNew.m_CpuType);
+	REGSAVE(TEXT(REGVALUE_THE_FREEZES_F8_ROM), ConfigNew.m_bEnableTheFreezesF8Rom);
+	REGSAVE(TEXT(REGVALUE_VIDEO_REFRESH_RATE), ConfigNew.m_videoRefreshRate);
+}
+
 void CPropertySheetHelper::ApplyNewConfig(void)
 {
 	ApplyNewConfig(m_ConfigNew, m_ConfigOld);
@@ -380,16 +380,9 @@ void CPropertySheetHelper::ApplyNewConfig(void)
 void CPropertySheetHelper::SaveCurrentConfig(void)
 {
 	// NB. clone-type is encoded in g_Apple2Type
-	m_ConfigOld.m_Apple2Type = GetApple2Type();
-	m_ConfigOld.m_CpuType = GetMainCpu();
-	m_ConfigOld.m_Slot[SLOT4] = GetCardMgr().QuerySlot(SLOT4);
-	m_ConfigOld.m_Slot[SLOT5] = GetCardMgr().QuerySlot(SLOT5);
-	m_ConfigOld.m_bEnableHDD = HD_CardIsEnabled();
-	m_ConfigOld.m_bEnableTheFreezesF8Rom = GetPropertySheet().GetTheFreezesF8Rom();
-	m_ConfigOld.m_videoRefreshRate = GetVideo().GetVideoRefreshRate();
+	m_ConfigOld.Reload();
 
 	// Reset flags each time:
-	m_ConfigOld.m_uSaveLoadStateMsg = 0;
 	m_bDoBenchmark = false;
 
 	// Setup ConfigNew
@@ -401,11 +394,11 @@ void CPropertySheetHelper::RestoreCurrentConfig(void)
 	// NB. clone-type is encoded in g_Apple2Type
 	SetApple2Type(m_ConfigOld.m_Apple2Type);
 	SetMainCpu(m_ConfigOld.m_CpuType);
-	GetCardMgr().Insert(SLOT4, m_ConfigOld.m_Slot[SLOT4]);
-	GetCardMgr().Insert(SLOT5, m_ConfigOld.m_Slot[SLOT5]);
-	HD_SetEnabled(m_ConfigOld.m_bEnableHDD);
+	SetSlot(SLOT3, m_ConfigOld.m_Slot[SLOT3]);
+	SetSlot(SLOT4, m_ConfigOld.m_Slot[SLOT4]);
+	SetSlot(SLOT5, m_ConfigOld.m_Slot[SLOT5]);
+	SetSlot(SLOT7, m_ConfigOld.m_Slot[SLOT7]);
 	GetPropertySheet().SetTheFreezesF8Rom(m_ConfigOld.m_bEnableTheFreezesF8Rom);
-	m_ConfigNew.m_videoRefreshRate = m_ConfigOld.m_videoRefreshRate;	// Not SetVideoRefreshRate(), as this re-inits much Video/NTSC state!
 }
 
 bool CPropertySheetHelper::IsOkToSaveLoadState(HWND hWnd, const bool bConfigChanged)
@@ -459,13 +452,22 @@ bool CPropertySheetHelper::HardwareConfigChanged(HWND hWnd)
 		if (CONFIG_CHANGED(m_videoRefreshRate))
 			strMsgMain += ". Video refresh rate has changed\n";
 
-		if (CONFIG_CHANGED(m_Slot[4]))
-			strMsgMain += GetSlot(4);
+		if (CONFIG_CHANGED(m_Slot[SLOT3]))
+			strMsgMain += GetSlot(SLOT3);
 
-		if (CONFIG_CHANGED(m_Slot[5]))
-			strMsgMain += GetSlot(5);
+		if (CONFIG_CHANGED(m_tfeInterface))
+			strMsgMain += ". Uthernet interface has changed\n";
 
-		if (CONFIG_CHANGED(m_bEnableHDD))
+		if (CONFIG_CHANGED(m_tfeVirtualDNS))
+			strMsgMain += ". Uthernet Virtual DNS has changed\n";
+
+		if (CONFIG_CHANGED(m_Slot[SLOT4]))
+			strMsgMain += GetSlot(SLOT4);
+
+		if (CONFIG_CHANGED(m_Slot[SLOT5]))
+			strMsgMain += GetSlot(SLOT5);
+
+		if (CONFIG_CHANGED(m_Slot[SLOT7]))
 			strMsgMain += ". Harddisk(s) have been plugged/unplugged\n";
 
 		if (CONFIG_CHANGED(m_bEnableTheFreezesF8Rom))
@@ -502,55 +504,22 @@ std::string CPropertySheetHelper::GetSlot(const UINT uSlot)
 	{
 		if (NewCardType == CT_Empty)
 		{
-			strMsg += GetCardName(OldCardType);
+			strMsg += Card::GetCardName(OldCardType);
 			strMsg += " card removed\n";
 		}
 		else
 		{
-			strMsg += GetCardName(NewCardType);
+			strMsg += Card::GetCardName(NewCardType);
 			strMsg += " card added\n";
 		}
 	}
 	else
 	{
-			strMsg += GetCardName(OldCardType);
+			strMsg += Card::GetCardName(OldCardType);
 			strMsg += " card removed & ";
-			strMsg += GetCardName(NewCardType);
+			strMsg += Card::GetCardName(NewCardType);
 			strMsg += " card added\n";
 	}
 
 	return strMsg;
-}
-
-std::string CPropertySheetHelper::GetCardName(const SS_CARDTYPE CardType)
-{
-	switch (CardType)
-	{
-	case CT_Empty:
-		return "Empty";
-	case CT_Disk2:			// Apple Disk][
-		return "Disk][";
-	case CT_SSC:			// Apple Super Serial Card
-		return "Super Serial";
-	case CT_MockingboardC:	// Soundcard
-		return "Mockingboard";
-	case CT_GenericPrinter:
-		return "Printer";
-	case CT_GenericHDD:		// Hard disk
-		return "Hard Disk";
-	case CT_GenericClock:
-		return "Clock";
-	case CT_MouseInterface:
-		return "Mouse";
-	case CT_Z80:
-		return "CP/M";
-	case CT_Phasor:			// Soundcard
-		return "Phasor";
-	case CT_Echo:			// Soundcard
-		return "Echo";
-	case CT_SAM:			// Soundcard: Software Automated Mouth
-		return "SAM";
-	default:
-		return "Unknown";
-	}
 }

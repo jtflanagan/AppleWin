@@ -493,22 +493,25 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 
 	// 2.7.0.0 TODO: FIXME: Opcode length that over-lap data, should be shortened ... if (nOpbyte_ > 1) if Disassembly_IsDataAddress( nBaseAddress + 1 ) nOpbyte_ = 1;
 	DisasmData_t* pData = Disassembly_IsDataAddress( nBaseAddress );
-	if( pData )
+	if ( pData )
 	{
-		if( pData_ )
+		if ( pData_ )
 			*pData_ = pData;
 
-		nSlack = pData->nEndAddress - pData->nStartAddress + 1; // *inclusive* KEEP IN SYNC: _CmdDefineByteRange() CmdDisasmDataList() _6502_GetOpmodeOpbyte() FormatNopcodeBytes()
+		const DWORD nEndAddress   = pData->nEndAddress;
+		const int   nDisplayLen   = nEndAddress - nBaseAddress + 1; // *inclusive* KEEP IN SYNC: _CmdDefineByteRange() CmdDisasmDataList() _6502_GetOpmodeOpbyte() FormatNopcodeBytes()
+		nSlack = nDisplayLen;
 
 		// Data Disassembler
 		// Smart Disassembly - Data Section
 		// Assemblyer Directives - Psuedo Mnemonics
-		switch( pData->eElementType )
+		switch ( pData->eElementType )
 		{
 			case NOP_BYTE_1: nOpbyte_ = 1; iOpmode_ = AM_M; break;
 			case NOP_BYTE_2: nOpbyte_ = 2; iOpmode_ = AM_M; break;
 			case NOP_BYTE_4: nOpbyte_ = 4; iOpmode_ = AM_M; break;
 			case NOP_BYTE_8: nOpbyte_ = 8; iOpmode_ = AM_M; break;
+			case NOP_FAC   : nOpbyte_ = 5; iOpmode_ = AM_M; break;
 			case NOP_WORD_1: nOpbyte_ = 2; iOpmode_ = AM_M; break;
 			case NOP_WORD_2: nOpbyte_ = 4; iOpmode_ = AM_M; break;
 			case NOP_WORD_4: nOpbyte_ = 8; iOpmode_ = AM_M; break;
@@ -703,9 +706,11 @@ bool _6502_GetTargets ( WORD nAddress, int *pTargetPartial_, int *pTargetPartial
 		case AM_NA: // Indirect (Absolute) - ie. JMP (abs)
 			_ASSERT(nOpcode == OPCODE_JMP_NA);
 			*pTargetPartial_    = nTarget16;
-			*pTargetPartial2_   = nTarget16+1;
+			*pTargetPartial2_   = (nTarget16+1) & _6502_MEM_END;
+			if (GetMainCpu() == CPU_6502 && (nTarget16 & 0xff) == 0xff)
+				*pTargetPartial2_ = nTarget16 & 0xff00;
 			if (bIncludeNextOpcodeAddress)
-				*pTargetPointer_ = mem[nTarget16] | (mem[(nTarget16+1)&0xFFFF]<<8);
+				*pTargetPointer_ = mem[*pTargetPartial_] | (mem[*pTargetPartial2_] << 8);
 			if (pTargetBytes_)
 				*pTargetBytes_ = 2;
 			break;
@@ -873,13 +878,12 @@ Hash_t AssemblerHashMnemonic ( const TCHAR * pMnemonic )
 	static int nMaxLen = 0;
 	if (nMaxLen < nLen) {
 		nMaxLen = nLen;
-		char sText[CONSOLE_WIDTH * 3];
-		ConsolePrintFormat( sText, "New Max Len: %d  %s", nMaxLen, pMnemonic );
+		ConsolePrintFormat( "New Max Len: %d  %s", nMaxLen, pMnemonic );
 	}
 #endif
 
-	while( *pText )
-//	for( int iChar = 0; iChar < 4; iChar++ )
+	while ( *pText )
+//	for ( int iChar = 0; iChar < 4; iChar++ )
 	{	
 		char c = tolower( *pText ); // TODO: based on ALLOW_INPUT_LOWERCASE ??
 
@@ -902,16 +906,15 @@ void AssemblerHashOpcodes ()
 	Hash_t nMnemonicHash;
 	int    iOpcode;
 
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		const TCHAR *pMnemonic = g_aOpcodes65C02[ iOpcode ].sMnemonic;
 		nMnemonicHash = AssemblerHashMnemonic( pMnemonic );
 		g_aOpcodesHash[ iOpcode ] = nMnemonicHash;
 #if DEBUG_ASSEMBLER
-	   //OutputDebugString( "" );
-      char sText[ 128 ];
-      ConsolePrintFormat( sText, "%s : %08X  ", pMnemonic, nMnemonicHash );
-	   // CLC: 002B864
+		//OutputDebugString( "" );
+		ConsolePrintFormat( "%s : %08X  ", pMnemonic, nMnemonicHash );
+		// CLC: 002B864
 #endif
 	}
 	ConsoleUpdate();
@@ -923,7 +926,7 @@ void AssemblerHashDirectives ()
 	Hash_t nMnemonicHash;
 	int    iOpcode;
 
-	for( iOpcode = 0; iOpcode < NUM_ASM_M_DIRECTIVES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_ASM_M_DIRECTIVES; iOpcode++ )
 	{
 		int iNopcode = FIRST_M_DIRECTIVE + iOpcode;
 //.		const TCHAR *pMnemonic = g_aAssemblerDirectivesMerlin[ iOpcode ].m_pMnemonic;
@@ -946,10 +949,9 @@ void _CmdAssembleHashDump ()
 // #if DEBUG_ASM_HASH
 	std::vector<HashOpcode_t> vHashes;
 	HashOpcode_t         tHash;
-	TCHAR                sText[ CONSOLE_WIDTH ];
 
 	int iOpcode;
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		tHash.m_iOpcode = iOpcode;
 		tHash.m_nValue  = g_aOpcodesHash[ iOpcode ]; 
@@ -961,7 +963,7 @@ void _CmdAssembleHashDump ()
 //	Hash_t nPrevHash = vHashes.at( 0 ).m_nValue;
 	Hash_t nThisHash = 0;
 
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		tHash = vHashes.at( iOpcode );
 
@@ -969,7 +971,7 @@ void _CmdAssembleHashDump ()
 		int    nOpcode   = tHash.m_iOpcode;
 		int    nOpmode   = g_aOpcodes[ nOpcode ].nAddressMode;
 
-		ConsoleBufferPushFormat( sText, "%08X %02X %s %s"
+		ConsoleBufferPushFormat( "%08X %02X %s %s"
 			, iThisHash
 			, nOpcode
 			, g_aOpcodes65C02[ nOpcode ].sMnemonic
@@ -979,7 +981,7 @@ void _CmdAssembleHashDump ()
 		
 //		if (nPrevHash != iThisHash)
 //		{
-//			ConsoleBufferPushFormat( sText, "Total: %d", nThisHash );
+//			ConsoleBufferPushFormat( "Total: %d", nThisHash );
 //			nThisHash = 0;
 //		}
 	}
@@ -997,7 +999,7 @@ int AssemblerPokeAddress( const int Opcode, const int nOpmode, const WORD nBaseA
 	int nOpbytes = g_aOpmodes[ nOpmode ].m_nBytes;
 
 	// if (nOpbytes != nBytes)
-	//	ConsoleDisplayError( TEXT(" ERROR: Input Opcode bytes differs from actual!" ) );
+	//	ConsoleDisplayError( " ERROR: Input Opcode bytes differs from actual!" );
 
 	*(memdirty + (nBaseAddress >> 8)) |= 1;
 //	*(mem + nBaseAddress) = (BYTE) nOpcode;
@@ -1020,7 +1022,7 @@ bool AssemblerPokeOpcodeAddress( const WORD nBaseAddress )
 	int iOpcode;
 	int nOpcodes = m_vAsmOpcodes.size();
 
-	for( iOpcode = 0; iOpcode < nOpcodes; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < nOpcodes; iOpcode++ )
 	{
 		int nOpcode = m_vAsmOpcodes.at( iOpcode ); // m_iOpcode;
 		int nOpmode = g_aOpcodes[ nOpcode ].nAddressMode;
@@ -1216,9 +1218,8 @@ bool AssemblerGetArgs( int iArg, int nArgs, WORD nBaseAddress )
 				else
 				{
 					// if valid hex address, don't have delayed target
-					TCHAR sAddress[ 32 ];
-					wsprintf( sAddress, "%X", m_nAsmTargetAddress);
-					if (_tcscmp( sAddress, pArg->sArg))
+					std::string strAddress = StrFormat( "%X", m_nAsmTargetAddress);
+					if (strAddress != pArg->sArg)
 					{
 						DelayedTarget_t tDelayedTarget;
 
@@ -1406,7 +1407,7 @@ void AssemblerProcessDelayedSymols()
 		bModified = false;
 		
 		std::vector<DelayedTarget_t>::iterator iSymbol;
-		for( iSymbol = m_vDelayedTargets.begin(); iSymbol != m_vDelayedTargets.end(); ++iSymbol )
+		for ( iSymbol = m_vDelayedTargets.begin(); iSymbol != m_vDelayedTargets.end(); ++iSymbol )
 		{
 			DelayedTarget_t *pTarget = & (*iSymbol); // m_vDelayedTargets.at( iSymbol );
 
@@ -1474,8 +1475,7 @@ bool Assemble( int iArg, int nArgs, WORD nAddress )
 	Hash_t nMnemonicHash = AssemblerHashMnemonic( pMnemonic );
 
 #if DEBUG_ASSEMBLER
-	char sText[ CONSOLE_WIDTH * 2 ];
-	ConsolePrintFormat( sText, "%s%04X%s: %s%s%s -> %s%08X", 
+	ConsolePrintFormat( "%s%04X%s: %s%s%s -> %s%08X", 
 		CHC_ADDRESS, nAddress,
 		CHC_DEFAULT,
 		CHC_STRING, pMnemonic,
@@ -1487,7 +1487,7 @@ bool Assemble( int iArg, int nArgs, WORD nAddress )
 	int iOpcode;
 	
 	// Ugh! Linear search.
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		if (nMnemonicHash == g_aOpcodesHash[ iOpcode ])
 		{

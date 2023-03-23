@@ -28,6 +28,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
+#include "6522.h"
+#include "CardManager.h"
+#include "Mockingboard.h"
 #include "Core.h"
 #include "CPU.h"
 #include "Log.h"
@@ -83,11 +86,10 @@ void SSI_Output(void)
 	int ssi2 = ssiRegs[SSI_RATEINF];
 
 	LogOutput("SSI: ");
-	for (int i=0; i<=4; i++)
+	for (int i = 0; i <= 4; i++)
 	{
-		char r[3]="--";
-		if (ssiRegs[i]>=0) sprintf(r,"%02X",ssiRegs[i]);
-		LogOutput("%s ", r);
+		std::string r = (ssiRegs[i] >= 0) ? ByteToHexStr(ssiRegs[i]) : "--";
+		LogOutput("%s ", r.c_str());
 		ssiRegs[i] = -1;
 	}
 
@@ -101,6 +103,23 @@ void SSI_Output(void)
 	LogOutput("\n");
 }
 #endif
+
+//-----------------------------------------------------------------------------
+
+UINT64 SSI263::GetLastCumulativeCycles(void)
+{
+	return dynamic_cast<MockingboardCard&>(GetCardMgr().GetRef(m_slot)).GetLastCumulativeCycles();
+}
+
+void SSI263::UpdateIFR(BYTE nDevice, BYTE clr_mask, BYTE set_mask)
+{
+	dynamic_cast<MockingboardCard&>(GetCardMgr().GetRef(m_slot)).UpdateIFR(nDevice, clr_mask, set_mask);
+}
+
+BYTE SSI263::GetPCR(BYTE nDevice)
+{
+	return dynamic_cast<MockingboardCard&>(GetCardMgr().GetRef(m_slot)).GetPCR(nDevice);
+}
 
 //-----------------------------------------------------------------------------
 
@@ -174,9 +193,8 @@ void SSI263::Write(BYTE nReg, BYTE nValue)
 		//
 		{
 			bool H2L = (m_ctrlArtAmp & CONTROL_MASK) && !(nValue & CONTROL_MASK);
-			char newMode[20];
-			sprintf_s(newMode, sizeof(newMode), "(new mode=%d)", m_durationPhoneme>>6);
-			LogOutput("CTRL  = %d->%d, ART = 0x%02X, AMP=0x%02X %s\n", m_ctrlArtAmp>>7, nValue>>7, (nValue&ARTICULATION_MASK)>>4, nValue&AMPLITUDE_MASK, H2L?newMode:"");
+			std::string newMode = StrFormat(" (new mode=%d)", m_durationPhoneme>>6);
+			LogOutput("CTRL  = %d->%d, ART = 0x%02X, AMP=0x%02X%s\n", m_ctrlArtAmp>>7, nValue>>7, (nValue&ARTICULATION_MASK)>>4, nValue&AMPLITUDE_MASK, H2L?newMode.c_str() : "");
 		}
 #endif
 #if LOG_SSI263B
@@ -293,7 +311,7 @@ void SSI263::Votrax_Write(BYTE value)
 	m_isVotraxPhoneme = true;
 
 	// !A/R: Acknowledge receipt of phoneme data (signal goes from high to low)
-	MB_UpdateIFR(m_device, IxR_VOTRAX, 0);
+	UpdateIFR(m_device, SY6522::IxR_VOTRAX, 0);
 
 	// NB. Don't set reg0.DUR, as SC01's phoneme duration doesn't change with pitch (empirically determined from MAME's SC01 emulation)
 	//m_durationPhoneme = value;	// Set reg0.DUR = I1:0 (inflection or pitch)
@@ -307,7 +325,7 @@ void SSI263::Play(unsigned int nPhoneme)
 {
 	if (!SSI263SingleVoice.bActive)
 	{
-		bool bRes = DSZeroVoiceBuffer(&SSI263SingleVoice, m_kDSBufferSize);
+		bool bRes = DSZeroVoiceBuffer(&SSI263SingleVoice, m_kDSBufferByteSize);
 		LogFileOutput("SSI263::Play: DSZeroVoiceBuffer(), res=%d\n", bRes ? 1 : 0);
 		if (!bRes)
 			return;
@@ -362,6 +380,9 @@ void SSI263::Play(unsigned int nPhoneme)
 	m_currSampleSum = 0;
 	m_currNumSamples = 0;
 	m_currSampleMod4 = 0;
+
+	// Set m_lastUpdateCycle, otherwise UpdateAccurateLength() can immediately complete phoneme! (GH#1104)
+	m_lastUpdateCycle = GetLastCumulativeCycles();
 }
 
 void SSI263::Stop(void)
@@ -466,7 +487,7 @@ void SSI263::Update(void)
 
 	//-------------
 
-	const UINT kMinBytesInBuffer = m_kDSBufferSize / 4;	// 25% full
+	const UINT kMinBytesInBuffer = m_kDSBufferByteSize / 4;	// 25% full
 	int nNumSamples = 0;
 	double updateInterval = 0.0;
 
@@ -477,7 +498,7 @@ void SSI263::Update(void)
 		// . NB. this is fine, since it's the steady state; and it's likely that no actual data will ever occur during this initial time.
 		// This means that the '1st phoneme playback time' (in cycles) will be a bit longer for subsequent times.
 
-		m_lastUpdateCycle = MB_GetLastCumulativeCycles();
+		m_lastUpdateCycle = GetLastCumulativeCycles();
 
 		nNumSamples = kMinBytesInBuffer / sizeof(short);
 		memset(&m_mixBufferSSI263[0], 0, nNumSamples);
@@ -489,17 +510,14 @@ void SSI263::Update(void)
 		const double kMinimumUpdateInterval = 500.0;	// Arbitary (500 cycles = 21 samples)
 		const double kMaximumUpdateInterval = (double)(0xFFFF + 2);	// Max 6522 timer interval (1372 samples)
 
-		if (m_lastUpdateCycle == 0)
-			m_lastUpdateCycle = MB_GetLastCumulativeCycles();		// Initial call to SSI263_Update() after reset/power-cycle
-
-		_ASSERT(MB_GetLastCumulativeCycles() >= m_lastUpdateCycle);
-		updateInterval = (double)(MB_GetLastCumulativeCycles() - m_lastUpdateCycle);
+		_ASSERT(GetLastCumulativeCycles() >= m_lastUpdateCycle);
+		updateInterval = (double)(GetLastCumulativeCycles() - m_lastUpdateCycle);
 		if (updateInterval < kMinimumUpdateInterval)
 			return;
 		if (updateInterval > kMaximumUpdateInterval)
 			updateInterval = kMaximumUpdateInterval;
 
-		m_lastUpdateCycle = MB_GetLastCumulativeCycles();
+		m_lastUpdateCycle = GetLastCumulativeCycles();
 
 		const double nIrqFreq = g_fCurrentCLK6502 / updateInterval + 0.5;			// Round-up
 		const int nNumSamplesPerPeriod = (int)((double)(SAMPLE_RATE_SSI263) / nIrqFreq);	// Eg. For 60Hz this is 367
@@ -510,8 +528,8 @@ void SSI263::Update(void)
 		if (nNumSamples > 2 * nNumSamplesPerPeriod)
 			nNumSamples = 2 * nNumSamplesPerPeriod;
 
-		if (nNumSamples > m_kDSBufferSize)
-			nNumSamples = m_kDSBufferSize;	// Clamp to prevent buffer overflow
+		if (nNumSamples > m_kDSBufferByteSize / sizeof(short))
+			nNumSamples = m_kDSBufferByteSize / sizeof(short);	// Clamp to prevent buffer overflow
 
 //		if (nNumSamples)
 //		{ /* Generate new sample data - ie. could merge from all the SSI263 sources */ }
@@ -520,13 +538,13 @@ void SSI263::Update(void)
 
 		int nBytesRemaining = m_byteOffset - dwCurrentPlayCursor;
 		if (nBytesRemaining < 0)
-			nBytesRemaining += m_kDSBufferSize;
+			nBytesRemaining += m_kDSBufferByteSize;
 
 		// Calc correction factor so that play-buffer doesn't under/overflow
 		const int nErrorInc = SoundCore_GetErrorInc();
 		if (nBytesRemaining < kMinBytesInBuffer)
 			m_numSamplesError += nErrorInc;				// < 0.25 of buffer remaining
-		else if (nBytesRemaining > m_kDSBufferSize / 2)
+		else if (nBytesRemaining > m_kDSBufferByteSize / 2)
 			m_numSamplesError -= nErrorInc;				// > 0.50 of buffer remaining
 		else
 			m_numSamplesError = 0;						// Acceptable amount of data in buffer
@@ -557,6 +575,8 @@ void SSI263::Update(void)
 
 	//-------------
 
+	const double amplitude = !m_isVotraxPhoneme ? (double)(m_ctrlArtAmp & AMPLITUDE_MASK) / (double)AMPLITUDE_MASK : 1.0;
+
 	bool bSpeechIRQ = false;
 
 	{
@@ -573,7 +593,8 @@ void SSI263::Update(void)
 			UINT samplesWritten = 0;
 			while (samplesWritten < (UINT)nNumSamples)
 			{
-				m_currSampleSum += (int)*m_pPhonemeData;
+				double sample = (double)*m_pPhonemeData * amplitude;
+				m_currSampleSum += (int)sample;
 				m_currNumSamples++;
 
 				m_pPhonemeData++;
@@ -614,10 +635,11 @@ void SSI263::Update(void)
 	DWORD dwDSLockedBufferSize0, dwDSLockedBufferSize1;
 	short *pDSLockedBuffer0, *pDSLockedBuffer1;
 
-	if (!DSGetLock(SSI263SingleVoice.lpDSBvoice,
-						m_byteOffset, (DWORD)nNumSamples*sizeof(short)*m_kNumChannels,
-						&pDSLockedBuffer0, &dwDSLockedBufferSize0,
-						&pDSLockedBuffer1, &dwDSLockedBufferSize1))
+	hr = DSGetLock(SSI263SingleVoice.lpDSBvoice,
+		m_byteOffset, (DWORD)nNumSamples * sizeof(short) * m_kNumChannels,
+		&pDSLockedBuffer0, &dwDSLockedBufferSize0,
+		&pDSLockedBuffer1, &dwDSLockedBufferSize1);
+	if (FAILED(hr))
 		return;
 
 	memcpy(pDSLockedBuffer0, &m_mixBufferSSI263[0], dwDSLockedBufferSize0);
@@ -630,7 +652,7 @@ void SSI263::Update(void)
 	if (FAILED(hr))
 		return;
 
-	m_byteOffset = (m_byteOffset + (DWORD)nNumSamples*sizeof(short)*m_kNumChannels) % m_kDSBufferSize;
+	m_byteOffset = (m_byteOffset + (DWORD)nNumSamples*sizeof(short)*m_kNumChannels) % m_kDSBufferByteSize;
 
 	//
 
@@ -652,10 +674,11 @@ void SSI263::UpdateAccurateLength(void)
 	if (!m_phonemeAccurateLengthRemaining)
 		return;
 
+	_ASSERT(m_lastUpdateCycle);		// Can't be 0, since set in Play()
 	if (m_lastUpdateCycle == 0)
 		return;
 
-	double updateInterval = (double)(MB_GetLastCumulativeCycles() - m_lastUpdateCycle);
+	double updateInterval = (double)(GetLastCumulativeCycles() - m_lastUpdateCycle);
 
 	const double nIrqFreq = g_fCurrentCLK6502 / updateInterval + 0.5;			// Round-up
 	const int nNumSamplesPerPeriod = (int)((double)(SAMPLE_RATE_SSI263) / nIrqFreq);	// Eg. For 60Hz this is 367
@@ -713,9 +736,9 @@ void SSI263::SetSpeechIRQ(void)
 		{
 			if (m_cardMode == PH_Mockingboard)
 			{
-				if ((MB_GetPCR(m_device) & 1) == 0)			// CA1 Latch/Input = 0 (Negative active edge)
-					MB_UpdateIFR(m_device, 0, IxR_SSI263);
-				if (MB_GetPCR(m_device) == 0x0C)			// CA2 Control = b#110 (Low output)
+				if ((GetPCR(m_device) & 1) == 0)			// CA1 Latch/Input = 0 (Negative active edge)
+					UpdateIFR(m_device, 0, SY6522::IxR_SSI263);
+				if (GetPCR(m_device) == 0x0C)			// CA2 Control = b#110 (Low output)
 					m_currentMode &= ~1;	// Clear SSI263's D7 pin (cleared by 6522's PCR CA1/CA2 handshake)
 
 				// NB. Don't set CTL=1, as Mockingboard(SMS) speech doesn't work (it sets MODE_IRQ_DISABLED mode during ISR)
@@ -734,11 +757,11 @@ void SSI263::SetSpeechIRQ(void)
 
 	//
 
-	if (m_isVotraxPhoneme && MB_GetPCR(m_device) == 0xB0)
+	if (m_isVotraxPhoneme && GetPCR(m_device) == 0xB0)
 	{
 		// !A/R: Time-out of old phoneme (signal goes from low to high)
 
-		MB_UpdateIFR(m_device, 0, IxR_VOTRAX);
+		UpdateIFR(m_device, 0, SY6522::IxR_VOTRAX);
 
 		m_isVotraxPhoneme = false;
 	}
@@ -752,7 +775,7 @@ bool SSI263::DSInit(void)
 	// Create single SSI263 voice
 	//
 
-	HRESULT hr = DSGetSoundBuffer(&SSI263SingleVoice, DSBCAPS_CTRLVOLUME, m_kDSBufferSize, SAMPLE_RATE_SSI263, m_kNumChannels, "SSI263");
+	HRESULT hr = DSGetSoundBuffer(&SSI263SingleVoice, DSBCAPS_CTRLVOLUME, m_kDSBufferByteSize, SAMPLE_RATE_SSI263, m_kNumChannels, "SSI263");
 	LogFileOutput("SSI263::DSInit: DSGetSoundBuffer(), hr=0x%08X\n", hr);
 	if (FAILED(hr))
 	{
@@ -859,10 +882,10 @@ void SSI263::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 	yamlSaveHelper.SaveBool(SS_YAML_KEY_SSI263_ACTIVE_PHONEME, IsPhonemeActive());
 }
 
-void SSI263::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT device, PHASOR_MODE mode, UINT version)
+void SSI263::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, PHASOR_MODE mode, UINT version)
 {
 	if (!yamlLoadHelper.GetSubMap(SS_YAML_KEY_SSI263))
-		throw std::string("Card: Expected key: ") + std::string(SS_YAML_KEY_SSI263);
+		throw std::runtime_error("Card: Expected key: " SS_YAML_KEY_SSI263);
 
 	m_durationPhoneme = yamlLoadHelper.LoadUint(SS_YAML_KEY_SSI263_REG_DUR_PHON);
 	m_inflection      = yamlLoadHelper.LoadUint(SS_YAML_KEY_SSI263_REG_INF);
@@ -887,5 +910,5 @@ void SSI263::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT device, PHASOR_MO
 	if (IsPhonemeActive())
 		UpdateIRQ();		// Pre: m_device, m_cardMode
 
-	m_lastUpdateCycle = MB_GetLastCumulativeCycles();
+	m_lastUpdateCycle = GetLastCumulativeCycles();
 }

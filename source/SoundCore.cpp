@@ -48,7 +48,7 @@ static LPDIRECTSOUND g_lpDS = NULL;
 
 // Used for muting & fading:
 
-static const UINT uMAX_VOICES = 6;	// 4x SSI263 + spkr + mockingboard
+static const UINT uMAX_VOICES = NUM_SLOTS * 2 + 1 + 1;	// 8x (2x SSI263) + spkr + MockingboardCardManager
 static UINT g_uNumVoices = 0;
 static VOICE* g_pVoices[uMAX_VOICES] = {NULL};
 
@@ -57,6 +57,21 @@ static VOICE* g_pSpeakerVoice = NULL;
 //-------------------------------------
 
 bool g_bDSAvailable = false;
+
+//-----------------------------------------------------------------------------
+
+// NB. Also similar is done by: MockingboardCardManager::Destroy()
+// - which is called from WM_DESTROY (when both restarting VM & exiting the app)
+
+VOICE::~VOICE(void)
+{
+	if (lpDSBvoice)
+	{
+		DSVoiceStop(this);
+		DSReleaseSoundBuffer(this);
+	}
+}
+
 
 //-----------------------------------------------------------------------------
 
@@ -124,14 +139,14 @@ static const char *DirectSound_ErrorText (HRESULT error)
 
 //-----------------------------------------------------------------------------
 
-bool DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
+HRESULT DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
 					  SHORT** ppDSLockedBuffer0, DWORD* pdwDSLockedBufferSize0,
 					  SHORT** ppDSLockedBuffer1, DWORD* pdwDSLockedBufferSize1)
 {
 	DWORD nStatus;
 	HRESULT hr = pVoice->GetStatus(&nStatus);
 	if(hr != DS_OK)
-		return false;
+		return hr;
 
 	if(nStatus & DSBSTATUS_BUFFERLOST)
 	{
@@ -151,7 +166,7 @@ bool DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
 								(void**)ppDSLockedBuffer0, pdwDSLockedBufferSize0,
 								(void**)ppDSLockedBuffer1, pdwDSLockedBufferSize1,
 								DSBLOCK_ENTIREBUFFER)))
-			return false;
+			return hr;
 	}
 	else
 	{
@@ -159,10 +174,10 @@ bool DSGetLock(LPDIRECTSOUNDBUFFER pVoice, DWORD dwOffset, DWORD dwBytes,
 								(void**)ppDSLockedBuffer0, pdwDSLockedBufferSize0,
 								(void**)ppDSLockedBuffer1, pdwDSLockedBufferSize1,
 								0)))
-			return false;
+			return hr;
 	}
 
-	return true;
+	return hr;
 }
 
 //-----------------------------------------------------------------------------
@@ -438,7 +453,7 @@ static VOID CALLBACK SoundCore_TimerFunc(HWND hwnd, UINT uMsg, UINT_PTR idEvent,
 
 void SoundCore_SetFade(eFADE FadeType)
 {
-	static int nLastMode = -1;
+	static AppMode_e nLastMode = MODE_UNDEFINED;
 
 	if(g_nAppMode == MODE_DEBUG)
 		return;
@@ -540,8 +555,10 @@ bool DSInit()
 		return false;
 	}
 
-	hr = g_lpDS->SetCooperativeLevel(GetFrame().g_hFrameWindow, DSSCL_NORMAL);
-	if(FAILED(hr))
+	HWND hwnd = GetFrame().g_hFrameWindow;
+	_ASSERT(hwnd);
+	hr = g_lpDS->SetCooperativeLevel(hwnd, DSSCL_NORMAL);
+	if (FAILED(hr))
 	{
 		if(g_fh) fprintf(g_fh, "SetCooperativeLevel failed (%08X)\n",hr);
 		return false;

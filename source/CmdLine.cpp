@@ -36,9 +36,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Keyboard.h"
 #include "Joystick.h"
 #include "SoundCore.h"
-#include "ParallelPrinter.h"
-#include "CardManager.h"
-#include "SerialComms.h"
+#include "SNESMAX.h"
 #include "Interface.h"
 
 CmdLine g_cmdLine;
@@ -50,9 +48,10 @@ bool g_bHookSystemKey = true;
 bool g_bHookAltTab = false;
 bool g_bHookAltGrControl = false;
 
+
 static LPSTR GetCurrArg(LPSTR lpCmdLine)
 {
-	if(*lpCmdLine == '\"')
+	if (*lpCmdLine == '\"')
 		lpCmdLine++;
 
 	return lpCmdLine;
@@ -62,9 +61,9 @@ static LPSTR GetNextArg(LPSTR lpCmdLine)
 {
 	int bInQuotes = 0;
 
-	while(*lpCmdLine)
+	while (*lpCmdLine)
 	{
-		if(*lpCmdLine == '\"')
+		if (*lpCmdLine == '\"')
 		{
 			bInQuotes ^= 1;
 			if(!bInQuotes)
@@ -74,9 +73,12 @@ static LPSTR GetNextArg(LPSTR lpCmdLine)
 			}
 		}
 
-		if((*lpCmdLine == ' ') && !bInQuotes)
+		if ((*lpCmdLine == ' ') && !bInQuotes)
 		{
 			*lpCmdLine++ = 0x00;
+
+			while (*lpCmdLine == ' ')	// Skip multiple spaces between args
+				lpCmdLine++;
 			break;
 		}
 
@@ -146,13 +148,13 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		{
 			lpCmdLine = GetCurrArg(lpNextArg);
 			lpNextArg = GetNextArg(lpNextArg);
-			g_cmdLine.szImageName_harddisk[HARDDISK_1] = lpCmdLine;
+			g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_1] = lpCmdLine;
 		}
 		else if (strcmp(lpCmdLine, "-h2") == 0)
 		{
 			lpCmdLine = GetCurrArg(lpNextArg);
 			lpNextArg = GetNextArg(lpNextArg);
-			g_cmdLine.szImageName_harddisk[HARDDISK_2] = lpCmdLine;
+			g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_2] = lpCmdLine;
 		}
 		else if (lpCmdLine[0] == '-' && lpCmdLine[1] == 's' && lpCmdLine[2] >= '1' && lpCmdLine[2] <= '7')
 		{
@@ -166,12 +168,40 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 					g_cmdLine.bSlotEmpty[slot] = true;
 				if (strcmp(lpCmdLine, "diskii") == 0)
 					g_cmdLine.slotInsert[slot] = CT_Disk2;
+				if (strcmp(lpCmdLine, "diskii13") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_Disk2;
+					g_cmdLine.slotInfo[slot].isDiskII13 = true;
+				}
+				if (strcmp(lpCmdLine, "hdc") == 0)
+					g_cmdLine.slotInsert[slot] = CT_GenericHDD;
+				if (strcmp(lpCmdLine, "parallel") == 0)
+				{
+					if (slot == SLOT1)
+						g_cmdLine.slotInsert[slot] = CT_GenericPrinter;
+					else
+						LogFileOutput("Parallel Printer card currently only supported in slot 1\n");
+				}
+				if (strcmp(lpCmdLine, "ssc") == 0)
+				{
+					if (slot == SLOT2)
+						g_cmdLine.slotInsert[slot] = CT_SSC;
+					else
+						LogFileOutput("SSC currently only supported in slot 2\n");
+				}
+				if (strcmp(lpCmdLine, "vidhd") == 0)
+				{
+					if (slot == SLOT3)
+						g_cmdLine.slotInsert[slot] = CT_VidHD;
+					else
+						LogFileOutput("VidHD currently only supported in slot 3\n");
+				}
 			}
 			else if (lpCmdLine[3] == 'd' && (lpCmdLine[4] == '1' || lpCmdLine[4] == '2'))	// -s[1..7]d[1|2] <dsk-image>
 			{
 				const UINT drive = lpCmdLine[4] == '1' ? DRIVE_1 : DRIVE_2;
 
-				if (slot != 5 && slot != 6)
+				if (slot != SLOT5 && slot != SLOT6)
 				{
 					LogFileOutput("Unsupported arg: %s\n", lpCmdLine);
 				}
@@ -180,6 +210,21 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 					lpCmdLine = GetCurrArg(lpNextArg);
 					lpNextArg = GetNextArg(lpNextArg);
 					g_cmdLine.szImageName_drive[slot][drive] = lpCmdLine;
+				}
+			}
+			else if (lpCmdLine[3] == 'h' && (lpCmdLine[4] == '1' || lpCmdLine[4] == '2'))	// -s[1..7]h[1|2] <dsk-image>
+			{
+				const UINT drive = lpCmdLine[4] == '1' ? HARDDISK_1 : HARDDISK_2;
+
+				if (slot != SLOT5 && slot != SLOT7)
+				{
+					LogFileOutput("Unsupported arg: %s\n", lpCmdLine);
+				}
+				else
+				{
+					lpCmdLine = GetCurrArg(lpNextArg);
+					lpNextArg = GetNextArg(lpNextArg);
+					g_cmdLine.szImageName_harddisk[slot][drive] = lpCmdLine;
 				}
 			}
 			else if (strcmp(lpCmdLine, "-s7-empty-on-exit") == 0)
@@ -199,35 +244,42 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		}
 		else if (strcmp(lpCmdLine, "-f") == 0 || strcmp(lpCmdLine, "-full-screen") == 0)
 		{
-			g_cmdLine.bSetFullScreen = true;
+			g_cmdLine.setFullScreen = 1;
 		}
 		else if (strcmp(lpCmdLine, "-no-full-screen") == 0)
 		{
-			g_cmdLine.bSetFullScreen = false;
+			g_cmdLine.setFullScreen = 0;
+		}
+#define CMD_FS_WIDTH "-fs-width="
+		else if (strncmp(lpCmdLine, CMD_FS_WIDTH, sizeof(CMD_FS_WIDTH)-1) == 0)
+		{
+			if (g_cmdLine.setFullScreen < 0)	// Not yet been specified on cmd line?
+				g_cmdLine.setFullScreen = 1;	// Implicity set full-screen. NB. Can be overridden by "-no-full-screen"
+
+			LPSTR lpTmp = lpCmdLine + sizeof(CMD_FS_WIDTH)-1;
+			{
+				g_cmdLine.userSpecifiedWidth = atoi(lpTmp);
+				if (!g_cmdLine.userSpecifiedWidth)
+					LogFileOutput("Invalid cmd-line parameter for -fs-width=x switch\n");
+			}
 		}
 #define CMD_FS_HEIGHT "-fs-height="
 		else if (strncmp(lpCmdLine, CMD_FS_HEIGHT, sizeof(CMD_FS_HEIGHT)-1) == 0)
 		{
-			g_cmdLine.bSetFullScreen = true;	// Implied. Can be overridden by "-no-full-screen"
+			if (g_cmdLine.setFullScreen < 0)	// Not yet been specified on cmd line?
+				g_cmdLine.setFullScreen = 1;	// Implicity set full-screen. NB. Can be overridden by "-no-full-screen"
 
 			LPSTR lpTmp = lpCmdLine + sizeof(CMD_FS_HEIGHT)-1;
-			bool bRes = false;
 			if (strcmp(lpTmp, "best") == 0)
 			{
-				bRes = GetFrame().GetBestDisplayResolutionForFullScreen(g_cmdLine.bestWidth, g_cmdLine.bestHeight);
+				g_cmdLine.bestFullScreenResolution = true;
 			}
 			else
 			{
-				UINT userSpecifiedHeight = atoi(lpTmp);
-				if (userSpecifiedHeight)
-					bRes = GetFrame().GetBestDisplayResolutionForFullScreen(g_cmdLine.bestWidth, g_cmdLine.bestHeight, userSpecifiedHeight);
-				else
+				g_cmdLine.userSpecifiedHeight = atoi(lpTmp);
+				if (!g_cmdLine.userSpecifiedHeight)
 					LogFileOutput("Invalid cmd-line parameter for -fs-height=x switch\n");
 			}
-			if (bRes)
-				LogFileOutput("Best resolution for -fs-height=x switch: Width=%d, Height=%d\n", g_cmdLine.bestWidth, g_cmdLine.bestHeight);
-			else
-				LogFileOutput("Failed to set parameter for -fs-height=x switch\n");
 		}
 		else if (strcmp(lpCmdLine, "-no-di") == 0)
 		{
@@ -345,6 +397,10 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		{
 			KeybSetAltGrSendsWM_CHAR(true);
 		}
+		else if (strcmp(lpCmdLine, "-capslock=off") == 0)			// GH#1187
+		{
+			KeybSetCapsLock(false);
+		}
 		else if (strcmp(lpCmdLine, "-no-hook-alt") == 0)			// GH#583
 		{
 			JoySetHookAltKeys(false);
@@ -379,7 +435,7 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		}
 		else if (strcmp(lpCmdLine, "-use-real-printer") == 0)	// Enable control in Advanced config to allow dumping to a real printer
 		{
-			g_bEnableDumpToRealPrinter = true;
+			g_cmdLine.enableDumpToRealPrinter = true;
 		}
 		else if (strcmp(lpCmdLine, "-speech") == 0)
 		{
@@ -391,8 +447,7 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		}
 		else if ((strcmp(lpCmdLine, "-dcd") == 0) || (strcmp(lpCmdLine, "-modem") == 0))	// GH#386
 		{
-			if (GetCardMgr().IsSSCInstalled())
-				GetCardMgr().GetSSC()->SupportDCD(true);
+			g_cmdLine.supportDCD = true;
 		}
 		else if (strcmp(lpCmdLine, "-alt-enter=toggle-full-screen") == 0)	// GH#556
 		{
@@ -517,6 +572,44 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		else if (strcmp(lpCmdLine, "-no-nsc") == 0)
 		{
 			g_cmdLine.bRemoveNoSlotClock = true;
+		}
+		else if (strcmp(lpCmdLine, "-snes-max-alt-joy1") == 0)
+		{
+			g_cmdLine.snesMaxAltControllerType[0] = true;
+		}
+		else if (strcmp(lpCmdLine, "-snes-max-alt-joy2") == 0)
+		{
+			g_cmdLine.snesMaxAltControllerType[1] = true;
+		}
+		else if (strcmp(lpCmdLine, "-snes-max-user-joy1") == 0 || strcmp(lpCmdLine, "-snes-max-user-joy2") == 0)
+		{
+			const unsigned int joyNum = (strcmp(lpCmdLine, "-snes-max-user-joy1") == 0) ? 0 : 1;
+
+			lpCmdLine = GetCurrArg(lpNextArg);
+			lpNextArg = GetNextArg(lpNextArg);
+
+			std::string errorMsg;
+			if (!SNESMAXCard::ParseControllerMappingFile(joyNum, lpCmdLine, errorMsg))
+			{
+				LogFileOutput("%s", errorMsg.c_str());
+				GetFrame().FrameMessageBox(errorMsg.c_str(), TEXT("AppleWin Error"), MB_OK);
+			}
+		}
+		else if (strcmp(lpCmdLine, "-wav-speaker") == 0)
+		{
+			lpCmdLine = GetCurrArg(lpNextArg);
+			lpNextArg = GetNextArg(lpNextArg);
+			g_cmdLine.wavFileSpeaker = lpCmdLine;
+		}
+		else if (strcmp(lpCmdLine, "-wav-mockingboard") == 0)
+		{
+			lpCmdLine = GetCurrArg(lpNextArg);
+			lpNextArg = GetNextArg(lpNextArg);
+			g_cmdLine.wavFileMockingboard = lpCmdLine;
+		}
+		else if (strcmp(lpCmdLine, "-no-disk2-stepper-defer") == 0)	// a debug switch (likely to be removed in a future version)
+		{
+			g_cmdLine.noDisk2StepperDefer = true;
 		}
 		else	// unsupported
 		{

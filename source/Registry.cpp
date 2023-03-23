@@ -30,19 +30,27 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Registry.h"
 #include "CmdLine.h"
+#include "StrFormat.h"
 
 namespace _ini {
 	//===========================================================================
-	BOOL RegLoadString(LPCTSTR section, LPCTSTR key, BOOL peruser, LPTSTR buffer, DWORD chars)
+	BOOL RegLoadString(LPCTSTR section, LPCTSTR key, BOOL /*peruser*/, LPTSTR buffer, DWORD chars)
 	{
 		DWORD n = GetPrivateProfileString(section, key, NULL, buffer, chars, g_sConfigFile.c_str());
 		return n > 0;
 	}
 
 	//===========================================================================
-	void RegSaveString(LPCTSTR section, LPCTSTR key, BOOL peruser, const std::string& buffer)
+	void RegSaveString(LPCTSTR section, LPCTSTR key, BOOL /*peruser*/, const std::string& buffer)
 	{
 		BOOL updated = WritePrivateProfileString(section, key, buffer.c_str(), g_sConfigFile.c_str());
+		_ASSERT(updated || GetLastError() == 0);
+	}
+
+	//===========================================================================
+	void RegDeleteString(LPCTSTR section, BOOL /*peruser*/)
+	{
+		BOOL updated = WritePrivateProfileString(section, NULL, NULL, g_sConfigFile.c_str());
 		_ASSERT(updated || GetLastError() == 0);
 	}
 }
@@ -53,18 +61,17 @@ BOOL RegLoadString (LPCTSTR section, LPCTSTR key, BOOL peruser, LPTSTR buffer, D
 	if (!g_sConfigFile.empty())
 		return _ini::RegLoadString(section, key, peruser, buffer, chars);
 
-	TCHAR fullkeyname[256];
-	StringCbPrintf(fullkeyname, 256, TEXT("Software\\AppleWin\\CurrentVersion\\%s"), section);
+	std::string fullkeyname = std::string("Software\\AppleWin\\CurrentVersion\\") + section;
 
 	BOOL success = FALSE;
 	HKEY keyhandle;
 	LSTATUS status = RegOpenKeyEx(
 		(peruser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE),
-		fullkeyname,
+		fullkeyname.c_str(),
 		0,
 		KEY_READ,
 		&keyhandle);
-	if (status == 0)
+	if (status == ERROR_SUCCESS)
 	{
 		DWORD type;
 		DWORD size = chars;
@@ -112,14 +119,13 @@ void RegSaveString (LPCTSTR section, LPCTSTR key, BOOL peruser, const std::strin
 	if (!g_sConfigFile.empty())
 		return _ini::RegSaveString(section, key, peruser, buffer);
 
-	TCHAR fullkeyname[256];
-	StringCbPrintf(fullkeyname, 256, TEXT("Software\\AppleWin\\CurrentVersion\\%s"), section);
+	std::string fullkeyname = std::string("Software\\AppleWin\\CurrentVersion\\") + section;
 
 	HKEY  keyhandle;
 	DWORD disposition;
 	LSTATUS status = RegCreateKeyEx(
 		(peruser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE),
-		fullkeyname,
+		fullkeyname.c_str(),
 		0,
 		NULL,
 		REG_OPTION_NON_VOLATILE,
@@ -127,7 +133,7 @@ void RegSaveString (LPCTSTR section, LPCTSTR key, BOOL peruser, const std::strin
 		(LPSECURITY_ATTRIBUTES)NULL,
 		&keyhandle,
 		&disposition);
-	if (status == 0)
+	if (status == ERROR_SUCCESS)
 	{
 		RegSetValueEx(
 			keyhandle,
@@ -142,8 +148,78 @@ void RegSaveString (LPCTSTR section, LPCTSTR key, BOOL peruser, const std::strin
 
 //===========================================================================
 void RegSaveValue (LPCTSTR section, LPCTSTR key, BOOL peruser, DWORD value) {
-	TCHAR buffer[32] = TEXT("");
-	StringCbPrintf(buffer, 32, "%d", value);
-	RegSaveString(section, key, peruser, buffer);
+	std::string strValue = StrFormat("%d", value);
+	RegSaveString(section, key, peruser, strValue.c_str());
 }
 
+//===========================================================================
+static inline std::string RegGetSlotSection(UINT slot)
+{
+	if (slot == GAME_IO_CONNECTOR)
+		return std::string(REG_CONFIG_GAME_IO_CONNECTOR);
+
+	return (slot == SLOT_AUX)
+		? std::string(REG_CONFIG_SLOT_AUX)
+		: (std::string(REG_CONFIG_SLOT) + (char)('0' + slot));
+}
+
+std::string RegGetConfigSlotSection(UINT slot)
+{
+	return std::string(REG_CONFIG "\\") + RegGetSlotSection(slot);
+}
+
+void RegDeleteConfigSlotSection(UINT slot)
+{
+	BOOL peruser = TRUE;
+
+	if (!g_sConfigFile.empty())
+	{
+		std::string section = RegGetConfigSlotSection(slot);
+		return _ini::RegDeleteString(section.c_str(), peruser);
+	}
+
+	std::string fullkeyname = std::string("Software\\AppleWin\\CurrentVersion\\") + REG_CONFIG;
+
+	HKEY keyhandle;
+	LSTATUS status = RegOpenKeyEx(
+		(peruser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE),
+		fullkeyname.c_str(),
+		0,
+		KEY_READ,
+		&keyhandle);
+	if (status == ERROR_SUCCESS)
+	{
+		std::string section = RegGetSlotSection(slot);
+		LSTATUS status2 = RegDeleteKey(keyhandle, section.c_str());
+		if (status2 != ERROR_SUCCESS && status2 != ERROR_FILE_NOT_FOUND)
+			_ASSERT(0);
+	}
+
+	RegCloseKey(keyhandle);
+}
+
+void RegSetConfigSlotNewCardType(UINT slot, SS_CARDTYPE type)
+{
+	_ASSERT(slot != GAME_IO_CONNECTOR);
+
+	RegDeleteConfigSlotSection(slot);
+
+	std::string regSection;
+	regSection = RegGetConfigSlotSection(slot);
+
+	RegSaveValue(regSection.c_str(), REGVALUE_CARD_TYPE, TRUE, type);
+}
+
+void RegSetConfigGameIOConnectorNewDongleType(UINT slot, DONGLETYPE type)
+{
+	_ASSERT(slot == GAME_IO_CONNECTOR);
+	if (slot != GAME_IO_CONNECTOR)
+		return;
+
+	RegDeleteConfigSlotSection(slot);
+
+	std::string regSection;
+	regSection = RegGetConfigSlotSection(slot);
+
+	RegSaveValue(regSection.c_str(), REGVALUE_GAME_IO_TYPE, TRUE, type);
+}

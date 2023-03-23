@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Mockingboard.h"	// enum PHASOR_MODE
+#include "MockingboardDefs.h"
 
 class SSI263
 {
 public:
-	SSI263(void)
+	SSI263(UINT slot) : m_slot(slot)
 	{
 		m_device = -1;	// undefined
 		m_cardMode = PH_Mockingboard;
@@ -59,6 +59,9 @@ public:
 		m_dbgStartTime = 0;
 	}
 
+	void SetDevice(UINT device) { m_device = device; }
+	void SetCardMode(PHASOR_MODE mode) { m_cardMode = mode; }
+
 	bool DSInit(void);
 	void DSUninit(void);
 
@@ -80,11 +83,8 @@ public:
 	bool GetVotraxPhoneme(void) { return m_isVotraxPhoneme; }
 	void SetVotraxPhoneme(bool value) { m_isVotraxPhoneme = value; }
 
-	void SetCardMode(PHASOR_MODE mode) { m_cardMode = mode; }
-	void SetDevice(UINT device) { m_device = device; }
-
 	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	void LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT device, PHASOR_MODE mode, UINT version);
+	void LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, PHASOR_MODE mode, UINT version);
 
 private:
 	void Play(unsigned int nPhoneme);
@@ -92,15 +92,20 @@ private:
 	void UpdateIRQ(void);
 	void UpdateAccurateLength(void);
 
+	UINT64 GetLastCumulativeCycles(void);
+	void UpdateIFR(BYTE nDevice, BYTE clr_mask, BYTE set_mask);
+	BYTE GetPCR(BYTE nDevice);
+
 	static const BYTE m_Votrax2SSI263[/*64*/];
 
 	static const unsigned short m_kNumChannels = 1;
-	static const DWORD m_kDSBufferSize = MAX_SAMPLES * sizeof(short) * m_kNumChannels;
-	short m_mixBufferSSI263[m_kDSBufferSize / sizeof(short)];
+	static const DWORD m_kDSBufferByteSize = MAX_SAMPLES * sizeof(short) * m_kNumChannels;
+	short m_mixBufferSSI263[m_kDSBufferByteSize / sizeof(short)];
 	VOICE SSI263SingleVoice;
 
 	//
 
+	UINT m_slot;
 	BYTE m_device;	// SSI263 device# which is generating phoneme-complete IRQ (and only required whilst Mockingboard isn't a class)
 	PHASOR_MODE m_cardMode;
 	short* m_pPhonemeData00;

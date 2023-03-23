@@ -35,24 +35,17 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Core.h"
 #include "CardManager.h"
 #include "CPU.h"
-#include "Disk.h"
-#include "Harddisk.h"
 #include "Joystick.h"
 #include "Keyboard.h"
 #include "LanguageCard.h"
 #include "Log.h"
-#include "Mockingboard.h"
-#include "MouseInterface.h"
 #include "NTSC.h"
 #include "NoSlotClock.h"
 #include "Pravets.h"
-#include "ParallelPrinter.h"
-#include "Registry.h"
-#include "SAM.h"
-#include "SerialComms.h"
 #include "Speaker.h"
 #include "Tape.h"
 #include "RGBMonitor.h"
+#include "VidHD.h"
 
 #include "z80emu.h"
 #include "Z80VICE/z80.h"
@@ -121,6 +114,10 @@ VIDEO SOFT SWITCHES
  $C00D   W       80COLON         Turn on 80 column display
  $C00E   W       ALTCHARSETOFF   Turn off alternate characters
  $C00F   W       ALTCHARSETON    Turn on alternate characters
+ $C022   R/W     SCREENCOLOR     [IIgs] text foreground and background colors (also VidHD)
+ $C029   R/W     NEWVIDEO        [IIgs] Select new video modes (also VidHD)
+ $C034   R/W     BORDERCOLOR     [IIgs] b3:0 are border color (also VidHD)
+ $C035   R/W     SHADOW          [IIgs] auxmem-to-bank-E1 shadowing (also VidHD)
  $C050   R/W     TEXTOFF         Select graphics mode
  $C051   R/W     TEXTON          Select text mode
  $C052   R/W     MIXEDOFF        Use full screen for graphics
@@ -137,7 +134,7 @@ SOFT SWITCH STATUS FLAGS
  $C011   R7      BSRBANK2        1=bank2 available    0=bank1 available
  $C012   R7      BSRREADRAM      1=BSR active for read   0=$D000-$FFFF active (BSR = Bank Switch RAM)
  $C013   R7      RAMRD           0=main $0200-$BFFF active reads  1=aux active
- $C014   R7      RAMWRT          0=main $0200-$BFFF active writes 1=aux writes
+ $C014   R7      RAMWRT          0=main $0200-$BFFF active writes 1=aux active
  $C015   R7      INTCXROM        1=main $C100-$CFFF ROM active   0=slot active
  $C016   R7      ALTZP           1=aux $0000-$1FF+auxBSR    0=main available
  $C017   R7      SLOTC3ROM       1=slot $C3 ROM active   0=main $C3 ROM active
@@ -233,8 +230,9 @@ static BOOL    modechanging = 0;				// An Optimisation: means delay calling Upda
 
 static UINT    memrompages = 1;
 
+LPBYTE  memVidHD = NULL;	// For Apple II/II+ writes to aux mem (on VidHD card). memVidHD = memaux or NULL (depends on //e soft-switches)
+
 static CNoSlotClock* g_NoSlotClock = new CNoSlotClock;
-static LanguageCardUnit* g_pLanguageCard = NULL;	// For all Apple II, //e and above
 
 #ifdef RAMWORKS
 static UINT		g_uMaxExPages = 1;				// user requested ram pages (default to 1 aux bank: so total = 128KB)
@@ -254,7 +252,6 @@ BYTE __stdcall IO_Annunciator(WORD programcounter, WORD address, BYTE write, BYT
 static SS_CARDTYPE g_MemTypeAppleII = CT_Empty;
 static SS_CARDTYPE g_MemTypeAppleIIPlus = CT_LanguageCard;	// Keep a copy so it's not lost if machine type changes, eg: A][ -> A//e -> A][
 static SS_CARDTYPE g_MemTypeAppleIIe = CT_Extended80Col;	// Keep a copy so it's not lost if machine type changes, eg: A//e -> A][ -> A//e
-static UINT g_uSaturnBanksFromCmdLine = 0;
 
 
 const UINT CxRomSize = 4 * 1024;
@@ -302,7 +299,7 @@ void SetExpansionMemType(const SS_CARDTYPE type)
 	}
 	else	// Apple //e or above
 	{
-		newSlot0Card = CT_Empty;		// NB. No slot0 for //e
+		newSlot0Card = CT_LanguageCardIIe;		// NB. No slot0 for //e
 		newSlotAuxCard = CT_Extended80Col;
 	}
 
@@ -330,21 +327,24 @@ void SetExpansionMemType(const SS_CARDTYPE type)
 
 void CreateLanguageCard(void)
 {
-	delete g_pLanguageCard;
-	g_pLanguageCard = NULL;
-
+	SS_CARDTYPE slot0CardType = GetCardMgr().QuerySlot(SLOT0);
 	if (IsApple2PlusOrClone(GetApple2Type()))
 	{
-		if (GetCardMgr().QuerySlot(SLOT0) == CT_Saturn128K)
-			g_pLanguageCard = new Saturn128K(g_uSaturnBanksFromCmdLine);
-		else if (GetCardMgr().QuerySlot(SLOT0) == CT_LanguageCard)
-			g_pLanguageCard = new LanguageCardSlot0;
-		else
-			g_pLanguageCard = NULL;
+		switch (slot0CardType) {
+		case CT_Empty:        // OK
+		case CT_Saturn128K:   // OK
+		case CT_LanguageCard: // OK
+			break;
+		default:              // Anything else is invalid
+			GetCardMgr().Remove(SLOT0);
+			break;
+		}
 	}
 	else
 	{
-		g_pLanguageCard = new LanguageCardUnit;
+		// only ever a CT_LanguageCardIIe for a //e
+		if (slot0CardType != CT_LanguageCardIIe)
+			GetCardMgr().Insert(SLOT0, CT_LanguageCardIIe);
 	}
 }
 
@@ -368,24 +368,19 @@ UINT GetRamWorksActiveBank(void)
 	return g_uActiveBank;
 }
 
-void SetSaturnMemorySize(UINT banks)
-{
-	g_uSaturnBanksFromCmdLine = banks;
-}
-
 //
 
 static BOOL GetLastRamWrite(void)
 {
-	if (g_pLanguageCard)
-		return g_pLanguageCard->GetLastRamWrite();
+	if (GetCardMgr().GetLanguageCard())
+		return GetCardMgr().GetLanguageCard()->GetLastRamWrite();
 	return 0;
 }
 
 static void SetLastRamWrite(BOOL count)
 {
-	if (g_pLanguageCard)
-		g_pLanguageCard->SetLastRamWrite(count);
+	if (GetCardMgr().GetLanguageCard())
+		GetCardMgr().GetLanguageCard()->SetLastRamWrite(count);
 }
 
 //
@@ -396,12 +391,6 @@ void SetMemMainLanguageCard(LPBYTE ptr, bool bMemMain /*=false*/)
 		g_pMemMainLanguageCard = memmain+0xC000;
 	else
 		g_pMemMainLanguageCard = ptr;
-}
-
-LanguageCardUnit* GetLanguageCard(void)
-{
-	_ASSERT(g_pLanguageCard);
-	return g_pLanguageCard;
 }
 
 LPBYTE GetCxRomPeripheral(void)
@@ -469,6 +458,12 @@ static BYTE __stdcall IORead_C02x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C02x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+	{
+		if (addr == 0xC022 || addr == 0xC029)
+			GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);
+	}
+
 	return TapeWrite(pc, addr, bWrite, d, nExecutedCycles);	// $C020 TAPEOUT
 }
 
@@ -481,6 +476,13 @@ static BYTE __stdcall IORead_C03x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C03x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+	{
+		// NB. Writes to $C03x addresses will still toggle the speaker, even with a VidHD present
+		if (addr == 0xC034 || addr == 0xC035)
+			GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);
+	}
+
 	return SpkrToggle(pc, addr, bWrite, d, nExecutedCycles);
 }
 
@@ -498,6 +500,24 @@ static BYTE __stdcall IOWrite_C04x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULON
 
 //-------------------------------------
 
+static BYTE __stdcall IOReadWrite_ANx(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
+{
+	// $C058..C05F
+	_ASSERT((addr & 0xf) >= 8);
+
+	if (IsAppleIIeOrAbove(GetApple2Type()))
+	{
+		if (!IsAppleIIc(GetApple2Type()) || /* IsIIc && */ SW_IOUDIS)
+			GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);	// Apple //e or (//c && IOUDIS)
+	}
+
+	if (IsAppleIIc(GetApple2Type()))	// No ANx lines for //c
+		return 0;
+
+	// GH#1018 - AN3 line is still present on //e (with $C05E/F also toggling DHIRES)
+	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
+}
+
 static BYTE __stdcall IORead_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
 	switch (addr & 0xf)
@@ -510,18 +530,7 @@ static BYTE __stdcall IORead_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 	case 0x5:	return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
 	case 0x6:	return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
 	case 0x7:	return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
-	case 0x8:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0x9:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xA:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xB:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xC:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xD:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xE:	// fall through...
-	case 0xF:	if (IsApple2PlusOrClone(GetApple2Type()))
-					IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-				else
-					return (!SW_IOUDIS) ? GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles)
-										: IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
+	default:	return IOReadWrite_ANx(pc, addr, bWrite, d, nExecutedCycles);	// $C058..C05F
 	}
 
 	return 0;
@@ -539,21 +548,8 @@ static BYTE __stdcall IOWrite_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULON
 	case 0x5:	return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
 	case 0x6:	return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
 	case 0x7:	return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
-	case 0x8:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0x9:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xA:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xB:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xC:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xD:	return IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-	case 0xE:	// fall through...
-	case 0xF:	if (IsApple2PlusOrClone(GetApple2Type()))
-					IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
-				else
-					return (!SW_IOUDIS) ? GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles)
-										: IO_Annunciator(pc, addr, bWrite, d, nExecutedCycles);
+	default:	return IOReadWrite_ANx(pc, addr, bWrite, d, nExecutedCycles);	// $C058..C05F
 	}
-
-	return 0;
 }
 
 //-------------------------------------
@@ -648,12 +644,12 @@ static BYTE __stdcall IOWrite_C07x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULON
 	case 0xC:	return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 	case 0xD:	return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 	case 0xE:	if (IS_APPLE2C())
-					SetMemMode(memmode & ~MF_IOUDIS);	// disable IOU access for addresses $C058 to $C05F; enable access to DHIRES switch
+					SetMemMode(memmode | MF_IOUDIS);	// On: disable IOU access for addresses $C058 to $C05F; enable access to DHIRES switch
 				else
 					return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 				break;
 	case 0xF:	if (IS_APPLE2C())
-					SetMemMode(memmode | MF_IOUDIS);	// enable IOU access for addresses $C058 to $C05F; disable access to DHIRES switch
+					SetMemMode(memmode & ~MF_IOUDIS);	// Off: enable IOU access for addresses $C058 to $C05F; disable access to DHIRES switch
 				else
 					return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 				break;
@@ -715,8 +711,6 @@ BYTE __stdcall IO_Annunciator(WORD programcounter, WORD address, BYTE write, BYT
 	// . $C2B5: LDA $C05D (CLRAN2) ;SETUP
 	// . $C2B8: LDA $C05F (CLRAN3) ; ANNUNCIATORS
 
-	// NB. AN3: For //e & //c these locations are now used to enabled/disabled DHIRES
-
 	g_Annunciator[(address>>1) & 3] = (address&1) ? true : false;
 
 	if (address >= 0xC058 && address <= 0xC05B)
@@ -742,7 +736,7 @@ inline bool IsPotentialNoSlotClockAccess(const WORD address)
 			  (SW_INTCXROM && (AddrHi == 0xC8)) );						// Internal ROM at [$C100-CFFF]               && AddrHi == $C8
 }
 
-static bool IsCardInSlot(const UINT uSlot);
+static bool IsCardInSlot(UINT slot);
 
 // Enabling expansion ROM ($C800..$CFFF]:
 // . Enable if: Enable1 && Enable2
@@ -942,7 +936,6 @@ BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value
 
 static struct SlotInfo
 {
-	bool bHasCard;
 	iofunction IOReadCx;
 	iofunction IOWriteCx;
 } g_SlotInfo[NUM_SLOTS] = {0};
@@ -975,7 +968,6 @@ static void InitIoHandlers()
 
 	for (i=0; i<NUM_SLOTS; i++)
 	{
-		g_SlotInfo[i].bHasCard = false;
 		g_SlotInfo[i].IOReadCx = IO_Cxxx;
 		g_SlotInfo[i].IOWriteCx = IO_Cxxx;
 		ExpansionRom[i] = NULL;
@@ -988,11 +980,16 @@ void RegisterIoHandler(UINT uSlot, iofunction IOReadC0, iofunction IOWriteC0, io
 	_ASSERT(uSlot < NUM_SLOTS);
 	SlotParameters[uSlot] = lpSlotParameter;
 
+	if (IOReadC0 == NULL)	IOReadC0 = IO_Null;
+	if (IOWriteC0 == NULL)	IOWriteC0 = IO_Null;
+
 	IORead[uSlot+8]		= IOReadC0;
 	IOWrite[uSlot+8]	= IOWriteC0;
 
 	if (uSlot == 0)		// Don't trash C0xx handlers
 		return;
+
+	//
 
 	if (IOReadCx == NULL)	IOReadCx = IO_Cxxx;
 	if (IOWriteCx == NULL)	IOWriteCx = IO_Cxxx;
@@ -1003,7 +1000,6 @@ void RegisterIoHandler(UINT uSlot, iofunction IOReadC0, iofunction IOWriteC0, io
 		IOWrite[uSlot*16+i]	= IOWriteCx;
 	}
 
-	g_SlotInfo[uSlot].bHasCard = true;
 	g_SlotInfo[uSlot].IOReadCx = IOReadCx;
 	g_SlotInfo[uSlot].IOWriteCx = IOWriteCx;
 
@@ -1011,12 +1007,17 @@ void RegisterIoHandler(UINT uSlot, iofunction IOReadC0, iofunction IOWriteC0, io
 	ExpansionRom[uSlot] = pExpansionRom;
 }
 
+void UnregisterIoHandler(UINT uSlot)
+{
+	RegisterIoHandler(uSlot, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
 // From UTAIIe:5-28: Since INTCXROM==1 then state of SLOTC3ROM is not important
 static void IoHandlerCardsOut(void)
 {
 	_ASSERT( SW_INTCXROM );
 
-	for (UINT uSlot=1; uSlot<NUM_SLOTS; uSlot++)
+	for (UINT uSlot=SLOT1; uSlot<NUM_SLOTS; uSlot++)
 	{
 		for (UINT i=0; i<16; i++)
 		{
@@ -1026,33 +1027,45 @@ static void IoHandlerCardsOut(void)
 	}
 }
 
+// From UTAIIe:5-28: If INTCXROM==0 && SLOTC3ROM==0 Then $C300-C3FF is internal ROM
+static void IoHandlerSlot3CardOut(void)
+{
+	_ASSERT(!SW_INTCXROM && !SW_SLOTC3ROM);
+
+	for (UINT i = 0; i < 16; i++)
+	{
+		IORead[SLOT3 * 16 + i] = IO_Cxxx;
+		IOWrite[SLOT3 * 16 + i] = IO_Cxxx;
+	}
+}
+
 static void IoHandlerCardsIn(void)
 {
 	_ASSERT( !SW_INTCXROM );
 
-	for (UINT uSlot=1; uSlot<NUM_SLOTS; uSlot++)
+	for (UINT uSlot=SLOT1; uSlot<NUM_SLOTS; uSlot++)
 	{
-		iofunction ioreadcx  = g_SlotInfo[uSlot].IOReadCx;
-		iofunction iowritecx = g_SlotInfo[uSlot].IOWriteCx;
-
-		if (uSlot == 3 && !SW_SLOTC3ROM)
+		if (uSlot == SLOT3 && !SW_SLOTC3ROM)
 		{
-			// From UTAIIe:5-28: If INTCXROM==0 && SLOTC3ROM==0 Then $C300-C3FF is internal ROM
-			ioreadcx  = IO_Cxxx;
-			iowritecx = IO_Cxxx;
+			IoHandlerSlot3CardOut();
 		}
-
-		for (UINT i=0; i<16; i++)
+		else
 		{
-			IORead[uSlot*16+i]	= ioreadcx;
-			IOWrite[uSlot*16+i]	= iowritecx;
+			iofunction ioreadcx = g_SlotInfo[uSlot].IOReadCx;
+			iofunction iowritecx = g_SlotInfo[uSlot].IOWriteCx;
+
+			for (UINT i = 0; i < 16; i++)
+			{
+				IORead[uSlot * 16 + i] = ioreadcx;
+				IOWrite[uSlot * 16 + i] = iowritecx;
+			}
 		}
 	}
 }
 
-static bool IsCardInSlot(const UINT uSlot)
+static bool IsCardInSlot(UINT slot)
 {
-	return g_SlotInfo[uSlot].bHasCard;
+	return GetCardMgr().QuerySlot(slot) != CT_Empty;
 }
 
 //===========================================================================
@@ -1071,22 +1084,34 @@ void SetMemMode(DWORD uNewMemMode)
 	if (dwOldDiff != dwDiff)
 	{
 		dwOldDiff = dwDiff;
-		char szStr[100];
-		char* psz = szStr;
-		psz += sprintf(psz, "diff = %08X ", dwDiff);
-		psz += sprintf(psz, "80=%d "   , SW_80STORE   ? 1 : 0);
-		psz += sprintf(psz, "ALTZP=%d ", SW_ALTZP     ? 1 : 0);
-		psz += sprintf(psz, "AUXR=%d " , SW_AUXREAD   ? 1 : 0);
-		psz += sprintf(psz, "AUXW=%d " , SW_AUXWRITE  ? 1 : 0);
-		psz += sprintf(psz, "BANK2=%d ", SW_BANK2     ? 1 : 0);
-		psz += sprintf(psz, "HIRAM=%d ", SW_HIGHRAM   ? 1 : 0);
-		psz += sprintf(psz, "HIRES=%d ", SW_HIRES     ? 1 : 0);
-		psz += sprintf(psz, "PAGE2=%d ", SW_PAGE2     ? 1 : 0);
-		psz += sprintf(psz, "C3=%d "   , SW_SLOTC3ROM ? 1 : 0);
-		psz += sprintf(psz, "CX=%d "   , SW_INTCXROM  ? 1 : 0);
-		psz += sprintf(psz, "WRAM=%d " , SW_WRITERAM  ? 1 : 0);
-		psz += sprintf(psz, "\n");
-		OutputDebugString(szStr);
+		std::string str = StrFormat(
+			/*01*/ "diff = %08X "
+			/*02*/ "80=%d "
+			/*03*/ "ALTZP=%d "
+			/*04*/ "AUXR=%d "
+			/*05*/ "AUXW=%d "
+			/*06*/ "BANK2=%d "
+			/*07*/ "HIRAM=%d "
+			/*08*/ "HIRES=%d "
+			/*09*/ "PAGE2=%d "
+			/*10*/ "C3=%d "
+			/*11*/ "CX=%d "
+			/*12*/ "WRAM=%d "
+			"\n",
+			/*01*/ dwDiff,
+			/*02*/ SW_80STORE   ? 1 : 0,
+			/*03*/ SW_ALTZP     ? 1 : 0,
+			/*04*/ SW_AUXREAD   ? 1 : 0,
+			/*05*/ SW_AUXWRITE  ? 1 : 0,
+			/*06*/ SW_BANK2     ? 1 : 0,
+			/*07*/ SW_HIGHRAM   ? 1 : 0,
+			/*08*/ SW_HIRES     ? 1 : 0,
+			/*09*/ SW_PAGE2     ? 1 : 0,
+			/*10*/ SW_SLOTC3ROM ? 1 : 0,
+			/*11*/ SW_INTCXROM  ? 1 : 0,
+			/*12*/ SW_WRITERAM  ? 1 : 0
+			);
+		OutputDebugString(str.c_str());
 	}
 #endif
 	memmode = uNewMemMode;
@@ -1286,9 +1311,6 @@ void MemDestroy()
 	RWpages[0]=NULL;
 #endif
 
-	delete g_pLanguageCard;
-	g_pLanguageCard = NULL;
-
 	memaux   = NULL;
 	memmain  = NULL;
 	memdirty = NULL;
@@ -1466,8 +1488,8 @@ bool MemIsAddrCodeMemory(const USHORT addr)
 
 	if (addr <= APPLE_SLOT_END)			// [$C100..C7FF]
 	{
-		const UINT uSlot = (addr >> 8) & 0x7;
-		return IsCardInSlot(uSlot);
+		UINT slot = (addr >> 8) & 0x7;
+		return IsCardInSlot(slot);
 	}
 
 	// [$C800..CFFF]
@@ -1502,9 +1524,9 @@ void MemInitialize()
 		memmain = ALIGNED_ALLOC(_6502_MEM_LEN);
 	}
 	// RIK END
+	memimage = ALIGNED_ALLOC(_6502_MEM_LEN);
 	memdirty = new BYTE[0x100];
 	memrom = new BYTE[0x3000 * MaxRomPages];
-	memimage = ALIGNED_ALLOC(_6502_MEM_LEN);
 
 	pCxRomInternal		= new BYTE[CxRomSize];
 	pCxRomPeripheral	= new BYTE[CxRomSize];
@@ -1595,15 +1617,13 @@ void MemInitializeROM(void)
 			}
 		}
 
-		TCHAR sText[MAX_PATH];
-		StringCbPrintf(sText, sizeof(sText), TEXT("Unable to open the required firmware ROM data file.\n\nFile: %s"), sRomFileName);
+		std::string strText = StrFormat("Unable to open the required firmware ROM data file.\n\nFile: %s", sRomFileName);
 
-		LogFileOutput("%s\n", sText);
+		LogFileOutput("%s\n", strText.c_str());
 
-		GetFrame().FrameMessageBox(
-			sText,
-			g_pAppTitle.c_str(),
-			MB_ICONSTOP | MB_SETFOREGROUND);
+		GetFrame().FrameMessageBox(strText.c_str(),
+								   g_pAppTitle.c_str(),
+								   MB_ICONSTOP | MB_SETFOREGROUND);
 
 		ExitProcess(1);
 	}
@@ -1728,81 +1748,56 @@ void MemInitializeIO(void)
 {
 	InitIoHandlers();
 
-	if (g_pLanguageCard)
-		g_pLanguageCard->InitializeIO();
-	else
-		RegisterIoHandler(LanguageCardUnit::kSlot0, IO_Null, IO_Null, NULL, NULL, NULL, NULL);
-
-	if (GetCardMgr().QuerySlot(SLOT1) == CT_GenericPrinter)
-		PrintLoadRom(pCxRomPeripheral, SLOT1);				// $C100 : Parallel printer f/w
-
-	if (GetCardMgr().QuerySlot(SLOT2) == CT_SSC)
-		dynamic_cast<CSuperSerialCard&>(GetCardMgr().GetRef(SLOT2)).CommInitialize(pCxRomPeripheral, SLOT2);	// $C200 : SSC
-
-	if (GetCardMgr().QuerySlot(SLOT3) == CT_Uthernet)
-	{
-		// Slot 3 contains the Uthernet card (which can coexist with an 80-col+Ram card in AUX slot)
-		// . Uthernet card has no ROM and only IO mapped at $C0Bx
-		// NB. I/O handlers setup via tfe_init() & update_tfe_interface()
-	}
-
-	// Apple//e: Auxilary slot contains Extended 80 Column card or RamWorksIII card
-
-	if (GetCardMgr().QuerySlot(SLOT4) == CT_MouseInterface)
-	{
-		dynamic_cast<CMouseInterface&>(GetCardMgr().GetRef(SLOT4)).Initialize(pCxRomPeripheral, SLOT4);	// $C400 : Mouse f/w
-	}
-	else if (GetCardMgr().QuerySlot(SLOT4) == CT_MockingboardC || GetCardMgr().QuerySlot(SLOT4) == CT_Phasor)
-	{
-		MB_InitializeIO(pCxRomPeripheral, SLOT4, SLOT5);
-	}
-	else if (GetCardMgr().QuerySlot(SLOT4) == CT_Z80)
-	{
-		ConfigureSoftcard(pCxRomPeripheral, SLOT4);		// $C400 : Z80 card
-	}
-//	else if (GetCardMgr().QuerySlot(SLOT4) == CT_GenericClock)
-//	{
-//		LoadRom_Clock_Generic(pCxRomPeripheral, SLOT4);
-//	}
-
-	if (GetCardMgr().QuerySlot(SLOT5) == CT_Z80)
-	{
-		ConfigureSoftcard(pCxRomPeripheral, SLOT5);		// $C500 : Z80 card
-	}
-	else if (GetCardMgr().QuerySlot(SLOT5) == CT_SAM)
-	{
-		ConfigureSAM(pCxRomPeripheral, SLOT5);			// $C500 : Z80 card
-	}
-	else if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
-	{
-		dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT5)).Initialize(pCxRomPeripheral, SLOT5);	// $C500 : Disk][ card
-	}
-
-	if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
-		dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6)).Initialize(pCxRomPeripheral, SLOT6);	// $C600 : Disk][ card
-
-	if (GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
-		HD_Load_Rom(pCxRomPeripheral, SLOT7);			// $C700 : HDD f/w
+	GetCardMgr().InitializeIO(pCxRomPeripheral);
 }
 
 // Called by:
 // . Snapshot_LoadState_v2()
-void MemInitializeCardSlotAndExpansionRomFromSnapshot(void)
+void MemInitializeFromSnapshot(void)
 {
+	MemInitializeROM();
+	MemInitializeCustomROM();
+	MemInitializeCustomF8ROM();
+	MemInitializeIO();
+
+	//
+	// Card and Expansion ROM
+	//
+
 	// Remove all the cards' ROMs at $Csnn if internal ROM is enabled
-	if (IsAppleIIeOrAbove(GetApple2Type()) && SW_INTCXROM)
-		IoHandlerCardsOut();
+	// Or just $C3nn if SLOT3 ROM is disabled
+	if (IsAppleIIeOrAbove(GetApple2Type()))
+	{
+		if (SW_INTCXROM)
+			IoHandlerCardsOut();
+		else if (!SW_SLOTC3ROM)
+			IoHandlerSlot3CardOut();
+	}
 
 	// Potentially init a card's expansion ROM
 	const UINT uSlot = g_uPeripheralRomSlot;
 
-	if (ExpansionRom[uSlot] == NULL)
-		return;
+	if (ExpansionRom[uSlot] != NULL)
+	{
+		_ASSERT(g_eExpansionRomType == eExpRomPeripheral);
 
-	_ASSERT(g_eExpansionRomType == eExpRomPeripheral);
+		memcpy(pCxRomPeripheral + 0x800, ExpansionRom[uSlot], FIRMWARE_EXPANSION_SIZE);
+		// NB. Copied to /mem/ by UpdatePaging(TRUE)
+	}
 
-	memcpy(pCxRomPeripheral+0x800, ExpansionRom[uSlot], FIRMWARE_EXPANSION_SIZE);
-	// NB. Copied to /mem/ by UpdatePaging(TRUE)
+	MemUpdatePaging(TRUE);
+
+	//
+	// VidHD
+	//
+
+	memVidHD = NULL;
+
+	if (IsApple2PlusOrClone(GetApple2Type()) && (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD))
+	{
+		VidHDCard& vidHD = dynamic_cast<VidHDCard&>(GetCardMgr().GetRef(SLOT3));
+		memVidHD = vidHD.IsWriteAux() ? memaux : NULL;
+	}
 }
 
 inline DWORD getRandomTime()
@@ -1833,6 +1828,8 @@ void MemReset()
 	g_uPeripheralRomSlot = 0;
 
 	memset(memdirty, 0, 0x100);
+
+	memVidHD = NULL;
 
 	//
 
@@ -2018,9 +2015,7 @@ static void DebugFlip(WORD address, ULONG nExecutedCycles)
 
 	const double fFreq = CLK_6502 / (double)uCyclesBetweenFlips;
 
-	char szStr[100];
-	sprintf(szStr, "Cycles between flips = %d (%f Hz)\n", uCyclesBetweenFlips, fFreq);
-	OutputDebugString(szStr);
+	LogOutput("Cycles between flips = %d (%f Hz)\n", uCyclesBetweenFlips, fFreq);
 }
 #endif
 
@@ -2033,7 +2028,7 @@ BYTE __stdcall MemSetPaging(WORD programcounter, WORD address, BYTE write, BYTE 
 #endif
 
 	// DETERMINE THE NEW MEMORY PAGING MODE.
-	if (!IS_APPLE2)
+	if (IsAppleIIeOrAbove(GetApple2Type()))
 	{
 		switch (address)
 		{
@@ -2064,6 +2059,15 @@ BYTE __stdcall MemSetPaging(WORD programcounter, WORD address, BYTE write, BYTE 
 				}
 				break;
 #endif
+		}
+	}
+	else // Apple ][,][+,][J-Plus or clone ][,][+
+	{
+		if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		{
+			VidHDCard& vidHD = dynamic_cast<VidHDCard&>(GetCardMgr().GetRef(SLOT3));
+			vidHD.VideoIOWrite(programcounter, address, write, value, nExecutedCycles);
+			memVidHD = vidHD.IsWriteAux() ? memaux : NULL;
 		}
 	}
 
@@ -2232,25 +2236,25 @@ static const UINT kUNIT_CARD_VER = 3;
 #define SS_YAML_KEY_NUMAUXBANKS "Num Aux Banks"
 #define SS_YAML_KEY_ACTIVEAUXBANK "Active Aux Bank"
 
-static std::string MemGetSnapshotStructName(void)
+static const std::string& MemGetSnapshotStructName(void)
 {
 	static const std::string name("Memory");
 	return name;
 }
 
-std::string MemGetSnapshotUnitAuxSlotName(void)
+const std::string& MemGetSnapshotUnitAuxSlotName(void)
 {
 	static const std::string name("Auxiliary Slot");
 	return name;
 }
 
-static std::string MemGetSnapshotMainMemStructName(void)
+static const std::string& MemGetSnapshotMainMemStructName(void)
 {
 	static const std::string name("Main Memory");
 	return name;
 }
 
-static std::string MemGetSnapshotAuxMemStructName(void)
+static const std::string& MemGetSnapshotAuxMemStructName(void)
 {
 	static const std::string name("Auxiliary Memory Bank");
 	return name;
@@ -2353,7 +2357,7 @@ bool MemLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 	//
 
 	if (!yamlLoadHelper.GetSubMap( MemGetSnapshotMainMemStructName() ))
-		throw std::string("Card: Expected key: ") + MemGetSnapshotMainMemStructName();
+		throw std::runtime_error("Card: Expected key: " + MemGetSnapshotMainMemStructName());
 
 	memset(memmain+0xC000, 0, LanguageCardSlot0::kMemBankSize);	// Clear it, as high 16K may not be in the save-state's "Main Memory" (eg. the case of II+ Saturn replacing //e LC)
 
@@ -2431,25 +2435,25 @@ static void MemLoadSnapshotAuxCommon(YamlLoadHelper& yamlLoadHelper, const std::
 	{
 		type = CT_80Col;
 		if (numAuxBanks != 0 || activeAuxBank != 0)
-			throw std::string(SS_YAML_KEY_UNIT ": AuxSlot: Bad aux slot card state");
+			throw std::runtime_error(SS_YAML_KEY_UNIT ": AuxSlot: Bad aux slot card state");
 	}
 	else if (card == SS_YAML_VALUE_CARD_EXTENDED80COL)
 	{
 		type = CT_Extended80Col;
 		if (numAuxBanks != 1 || activeAuxBank != 0)
-			throw std::string(SS_YAML_KEY_UNIT ": AuxSlot: Bad aux slot card state");
+			throw std::runtime_error(SS_YAML_KEY_UNIT ": AuxSlot: Bad aux slot card state");
 	}
 	else if (card == SS_YAML_VALUE_CARD_RAMWORKSIII)
 	{
 		type = CT_RamWorksIII;
 		if (numAuxBanks < 2 || numAuxBanks > 0x7F || (activeAuxBank+1) > numAuxBanks)
-			throw std::string(SS_YAML_KEY_UNIT ": AuxSlot: Bad aux slot card state");
+			throw std::runtime_error(SS_YAML_KEY_UNIT ": AuxSlot: Bad aux slot card state");
 	}
 	else
 	{
 		// todo: support empty slot
 		type = CT_Empty;
-		throw std::string(SS_YAML_KEY_UNIT ": AuxSlot: Unknown card: " + card);
+		throw std::runtime_error(SS_YAML_KEY_UNIT ": AuxSlot: Unknown card: " + card);
 	}
 
 	g_uMaxExPages = numAuxBanks;
@@ -2466,19 +2470,16 @@ static void MemLoadSnapshotAuxCommon(YamlLoadHelper& yamlLoadHelper, const std::
 		}
 
 		// "Auxiliary Memory Bankxx"
-		char szBank[3];
-		sprintf(szBank, "%02X", uBank-1);
-		std::string auxMemName = MemGetSnapshotAuxMemStructName() + szBank;
+		std::string auxMemName = MemGetSnapshotAuxMemStructName() + ByteToHexStr(uBank-1);
 
 		if (!yamlLoadHelper.GetSubMap(auxMemName))
-			throw std::string("Memory: Missing map name: " + auxMemName);
+			throw std::runtime_error("Memory: Missing map name: " + auxMemName);
 
 		yamlLoadHelper.LoadMemory(pBank, _6502_MEM_LEN);
 
 		yamlLoadHelper.PopMap();
 	}
 
-	GetCardMgr().Remove(SLOT0);
 	GetCardMgr().InsertAux(type);
 
 	memaux = RWpages[g_uActiveBank];
@@ -2497,7 +2498,7 @@ static void MemLoadSnapshotAuxVer2(YamlLoadHelper& yamlLoadHelper)
 	UINT cardVersion = yamlLoadHelper.LoadUint(SS_YAML_KEY_VERSION);
 
 	if (!yamlLoadHelper.GetSubMap(std::string(SS_YAML_KEY_STATE)))
-		throw std::string(SS_YAML_KEY_UNIT ": Expected sub-map name: " SS_YAML_KEY_STATE);
+		throw std::runtime_error(SS_YAML_KEY_UNIT ": Expected sub-map name: " SS_YAML_KEY_STATE);
 
 	MemLoadSnapshotAuxCommon(yamlLoadHelper, card);
 
@@ -2507,7 +2508,7 @@ static void MemLoadSnapshotAuxVer2(YamlLoadHelper& yamlLoadHelper)
 bool MemLoadSnapshotAux(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 {
 	if (unitVersion < 1 || unitVersion > kUNIT_AUXSLOT_VER)
-		throw std::string(SS_YAML_KEY_UNIT ": AuxSlot: Version mismatch");
+		throw std::runtime_error(SS_YAML_KEY_UNIT ": AuxSlot: Version mismatch");
 
 	if (unitVersion == 1)
 		MemLoadSnapshotAuxVer1(yamlLoadHelper);

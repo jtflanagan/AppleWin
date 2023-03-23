@@ -2,6 +2,7 @@
 
 #include "Card.h"
 #include "Disk2CardManager.h"
+#include "MockingboardCardManager.h"
 #include "Common.h"
 
 class CardManager
@@ -9,17 +10,20 @@ class CardManager
 public:
 	CardManager(void) :
 		m_pMouseCard(NULL),
-		m_pSSC(NULL)
+		m_pSSC(NULL),
+		m_pLanguageCard(NULL),
+		m_pParallelPrinterCard(NULL),
+		m_pZ80Card(NULL)
 	{
-		Insert(0, CT_Empty);
-		Insert(1, CT_GenericPrinter);
-		Insert(2, CT_SSC);
-		Insert(3, CT_Uthernet);
-		Insert(4, CT_Empty);
-		Insert(5, CT_Empty);
-		Insert(6, CT_Disk2);
-		Insert(7, CT_Empty);
-		InsertAux(CT_Extended80Col);	// For Apple //e and above
+		InsertInternal(SLOT0, CT_Empty);
+		InsertInternal(SLOT1, CT_GenericPrinter);
+		InsertInternal(SLOT2, CT_SSC);
+		InsertInternal(SLOT3, CT_Empty);
+		InsertInternal(SLOT4, CT_Empty);
+		InsertInternal(SLOT5, CT_Empty);
+		InsertInternal(SLOT6, CT_Disk2);
+		InsertInternal(SLOT7, CT_Empty);
+		InsertAuxInternal(CT_Extended80Col);	// For Apple //e and above
 	}
 	~CardManager(void)
 	{
@@ -28,15 +32,18 @@ public:
 		RemoveAuxInternal();
 	}
 
-	void Insert(UINT slot, SS_CARDTYPE type);
-	void Remove(UINT slot);
+	void Insert(UINT slot, SS_CARDTYPE type, bool updateRegistry = true);
+	void Remove(UINT slot, bool updateRegistry = true);
 	SS_CARDTYPE QuerySlot(UINT slot) { _ASSERT(slot<NUM_SLOTS); return m_slot[slot]->QueryType(); }
 	Card& GetRef(UINT slot)
 	{
-		SS_CARDTYPE t=QuerySlot(slot); _ASSERT((t==CT_SSC || t==CT_MouseInterface || t==CT_Disk2) && m_slot[slot]);
+		_ASSERT(m_slot[slot]);
 		return *m_slot[slot];
 	}
-	Card* GetObj(UINT slot) { SS_CARDTYPE t=QuerySlot(slot); _ASSERT(t==CT_SSC || t==CT_MouseInterface || t==CT_Disk2); return m_slot[slot]; }
+	Card* GetObj(UINT slot)
+	{
+		return m_slot[slot];
+	}
 
 	void InsertAux(SS_CARDTYPE type);
 	void RemoveAux(void);
@@ -46,18 +53,35 @@ public:
 	//
 
 	Disk2CardManager& GetDisk2CardMgr(void) { return m_disk2CardMgr; }
+	MockingboardCardManager& GetMockingboardCardMgr(void) { return m_mockingboardCardMgr; }
 	class CMouseInterface* GetMouseCard(void) { return m_pMouseCard; }
 	bool IsMouseCardInstalled(void) { return m_pMouseCard != NULL; }
 	class CSuperSerialCard* GetSSC(void) { return m_pSSC; }
 	bool IsSSCInstalled(void) { return m_pSSC != NULL; }
+	class ParallelPrinterCard* GetParallelPrinterCard(void) { return m_pParallelPrinterCard; }
+	bool IsParallelPrinterCardInstalled(void) { return m_pParallelPrinterCard != NULL; }
+
+	class LanguageCardUnit* GetLanguageCard(void) { return m_pLanguageCard; }
+
+	void InitializeIO(LPBYTE pCxRomPeripheral);
+	void Destroy(void);
+	void Reset(const bool powerCycle);
+	void Update(const ULONG nExecutedCycles);
+	void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
 
 private:
+	void InsertInternal(UINT slot, SS_CARDTYPE type);
+	void InsertAuxInternal(SS_CARDTYPE type);
 	void RemoveInternal(UINT slot);
 	void RemoveAuxInternal(void);
 
 	Card* m_slot[NUM_SLOTS];
 	Card* m_aux;
 	Disk2CardManager m_disk2CardMgr;
+	MockingboardCardManager m_mockingboardCardMgr;
 	class CMouseInterface* m_pMouseCard;
 	class CSuperSerialCard* m_pSSC;
+	class LanguageCardUnit* m_pLanguageCard;
+	class ParallelPrinterCard* m_pParallelPrinterCard;
+	class Z80Card* m_pZ80Card;
 };

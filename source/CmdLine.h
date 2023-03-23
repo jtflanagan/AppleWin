@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RgbMonitor.h"
+#include "RGBMonitor.h"
 #include "Harddisk.h"
 #include "Disk.h"
 #include "Common.h"
@@ -9,20 +9,30 @@
 
 struct CmdLine
 {
+	struct SlotInfo
+	{
+		SlotInfo()
+		{
+			isDiskII13 = false;
+		}
+
+		bool isDiskII13;
+	};
+
 	CmdLine()
 	{
 		bShutdown = false;
-		bSetFullScreen = false;
+		setFullScreen = -1;
 		bBoot = false;
-		bChangedDisplayResolution = false;
 		bSlot0LanguageCard = false;
 		bSlot7EmptyOnExit = false;
 		bSwapButtons0and1 = false;
 		bRemoveNoSlotClock = false;
-		bestWidth = 0;
-		bestHeight = 0;
-		szImageName_harddisk[HARDDISK_1] = NULL;
-		szImageName_harddisk[HARDDISK_2] = NULL;
+		snesMaxAltControllerType[0] = false;
+		snesMaxAltControllerType[1] = false;
+		supportDCD = false;
+		enableDumpToRealPrinter = false;
+		noDisk2StepperDefer = false;
 		szSnapshotName = NULL;
 		szScreenshotFilename = NULL;
 		uRamWorksExPages = 0;
@@ -36,6 +46,9 @@ struct CmdLine
 		rgbCard = RGB_Videocard_e::Apple;
 		rgbCardForegroundColor = 15;
 		rgbCardBackgroundColor = 0;
+		bestFullScreenResolution = false;
+		userSpecifiedWidth = 0;
+		userSpecifiedHeight = 0;
 		bRemoteControlEnabled = true;
 		bRCTrackOnlyEnabled = true;
 
@@ -47,24 +60,28 @@ struct CmdLine
 			szImageName_drive[i][DRIVE_2] = NULL;
 			driveConnected[i][DRIVE_1] = true;
 			driveConnected[i][DRIVE_2] = true;
+			szImageName_harddisk[i][HARDDISK_1] = NULL;
+			szImageName_harddisk[i][HARDDISK_2] = NULL;
 		}
 	}
 
 	bool bShutdown;
-	bool bSetFullScreen;
+	int setFullScreen;	// tristate: -1 (no cmd line specified), 0="-no-full-screen", 1="-full-screen"
 	bool bBoot;
-	bool bChangedDisplayResolution;
 	bool bSlot0LanguageCard;
 	bool bSlotEmpty[NUM_SLOTS];
 	bool bSlot7EmptyOnExit;
 	bool bSwapButtons0and1;
 	bool bRemoveNoSlotClock;
+	bool snesMaxAltControllerType[2];
+	bool supportDCD;
+	bool enableDumpToRealPrinter;
+	bool noDisk2StepperDefer;	// debug
 	SS_CARDTYPE slotInsert[NUM_SLOTS];
-	UINT bestWidth;
-	UINT bestHeight;
-	LPSTR szImageName_drive[NUM_SLOTS][NUM_DRIVES];
+	SlotInfo slotInfo[NUM_SLOTS];
+	LPCSTR szImageName_drive[NUM_SLOTS][NUM_DRIVES];
 	bool driveConnected[NUM_SLOTS][NUM_DRIVES];
-	LPSTR szImageName_harddisk[NUM_HARDDISKS];
+	LPCSTR szImageName_harddisk[NUM_SLOTS][NUM_HARDDISKS];
 	LPSTR szSnapshotName;
 	LPSTR szScreenshotFilename;
 	UINT uRamWorksExPages;
@@ -81,6 +98,11 @@ struct CmdLine
 	bool bRemoteControlEnabled;
 	bool bRCTrackOnlyEnabled;
 	std::string strCurrentDir;
+	bool bestFullScreenResolution;
+	UINT userSpecifiedWidth;
+	UINT userSpecifiedHeight;
+	std::string wavFileSpeaker;
+	std::string wavFileMockingboard;
 };
 
 bool ProcessCmdLine(LPSTR lpCmdLine);

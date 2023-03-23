@@ -142,9 +142,6 @@
     <ClCompile Include="source\Tape.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
-    <ClCompile Include="source\Tfe\tfe.cpp">
-      <Filter>Source Files\Uthernet</Filter>
-    </ClCompile>
     <ClCompile Include="source\Tfe\tfearch.cpp">
       <Filter>Source Files\Uthernet</Filter>
     </ClCompile>
@@ -235,6 +232,54 @@
     <ClCompile Include="source\Debugger\Debugger_Win32.cpp">
       <Filter>Source Files\Debugger</Filter>
     </ClCompile>
+    <ClCompile Include="source\Windows\HookFilter.cpp">
+      <Filter>Source Files\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="source\FourPlay.cpp">
+      <Filter>Source Files\Emulator</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SNESMAX.cpp">
+      <Filter>Source Files\Emulator</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Card.cpp">
+      <Filter>Source Files\Emulator</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\VidHD.cpp">
+      <Filter>Source Files\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="source\6522.cpp">
+      <Filter>Source Files\Emulator</Filter>
+    </ClCompile>
+    <ClCompile Include="source\StrFormat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Uthernet1.cpp">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Tfe\NetworkBackend.cpp">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Tfe\PCapBackend.cpp">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Uthernet2.cpp">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Tfe\IPRaw.cpp">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Tfe\DNS.cpp">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Configuration\Config.cpp">
+      <Filter>Source Files\Configuration</Filter>
+    </ClCompile>
+    <ClCompile Include="source\CopyProtectionDongles.cpp">
+      <Filter>Source Files\Emulator</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MockingboardCardManager.cpp">
+      <Filter>Source Files\Emulator</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\CommonVICE\6510core.h">
@@ -248,9 +293,6 @@
     </ClInclude>
     <ClInclude Include="source\AY8910.h">
       <Filter>Source Files\Emulator</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Tfe\Bittypes.h">
-      <Filter>Source Files\Uthernet</Filter>
     </ClInclude>
     <ClInclude Include="source\Tfe\Bpf.h">
       <Filter>Source Files\Uthernet</Filter>
@@ -390,9 +432,6 @@
     <ClInclude Include="source\Tfe\Pcap.h">
       <Filter>Source Files\Uthernet</Filter>
     </ClInclude>
-    <ClInclude Include="source\Tfe\Pcap-stdinc.h">
-      <Filter>Source Files\Uthernet</Filter>
-    </ClInclude>
     <ClInclude Include="source\Configuration\PropertySheet.h">
       <Filter>Source Files\Configuration</Filter>
     </ClInclude>
@@ -434,9 +473,6 @@
     </ClInclude>
     <ClInclude Include="source\Tape.h">
       <Filter>Source Files\Emulator</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Tfe\tfe.h">
-      <Filter>Source Files\Uthernet</Filter>
     </ClInclude>
     <ClInclude Include="source\Tfe\tfearch.h">
       <Filter>Source Files\Uthernet</Filter>
@@ -492,12 +528,6 @@
     <ClInclude Include="source\YamlHelper.h">
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
-    <ClInclude Include="source\SaveState_Structs_common.h">
-      <Filter>Source Files\_Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SaveState_Structs_v1.h">
-      <Filter>Source Files\_Headers</Filter>
-    </ClInclude>
     <ClInclude Include="source\RGBMonitor.h">
       <Filter>Source Files\Video</Filter>
     </ClInclude>
@@ -551,6 +581,54 @@
     </ClInclude>
     <ClInclude Include="source\Debugger\Debugger_Win32.h">
       <Filter>Source Files\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Windows\HookFilter.h">
+      <Filter>Source Files\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="source\FourPlay.h">
+      <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SNESMAX.h">
+      <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\VidHD.h">
+      <Filter>Source Files\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="source\6522.h">
+      <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\StrFormat.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Uthernet1.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Tfe\NetworkBackend.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Tfe\PCapBackend.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\W5100.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Uthernet2.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Tfe\IPRaw.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Tfe\DNS.h">
+      <Filter>Source Files\Uthernet</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CopyProtectionDongles.h">
+      <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MockingboardCardManager.h">
+      <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MockingboardDefs.h">
+      <Filter>Source Files\Emulator</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -662,7 +740,9 @@
     <Image Include="resource\RUNBASE64A.BMP">
       <Filter>Resource Files</Filter>
     </Image>
-    <Image Include="resource\ApplewinLogo.bmp" />
+    <Image Include="resource\ApplewinLogo.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <None Include="resource\Apple2.rom">
@@ -728,9 +808,15 @@
     <None Include="resource\Base64A_German_Video.rom">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="resource\Apple2_JPlus.rom" />
-    <None Include="resource\Apple2_JPlus_Video.rom" />
-    <None Include="resource\Disk2-13sector.rom" />
+    <None Include="resource\Apple2_JPlus.rom">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resource\Apple2_JPlus_Video.rom">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resource\Disk2-13sector.rom">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="docs\CodingConventions.txt">
