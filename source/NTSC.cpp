@@ -1847,8 +1847,24 @@ void updateScreenText80RGB(long cycles6502)
 //===========================================================================
 void updateScreenSHR(long cycles6502)
 {
+	if (GetVideo().VideoGetSDHRState() == true) {
+		// handle SDHR separate from regular SHR for clarity
+		for (; cycles6502 > 0; --cycles6502)
+		{
+			if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_IIGS) {
+				if (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_START) {
+
+					VidHDCard::UpdateSDHRCell(g_nVideoClockVert, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress);
+					g_pVideoAddress += 16;
+					updateVideoScannerHorzEOL_SHR();
+				}
+			}
+		}
+		return;
+	}
 	for (; cycles6502 > 0; --cycles6502)
 	{
+
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_IIGS)
 		{
 			uint16_t addr = getVideoScannerAddressSHR();

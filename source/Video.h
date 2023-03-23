@@ -192,6 +192,7 @@ public:
 		g_videoRomSize = 0;
 		g_videoRomRockerSwitch = false;
 		m_hasVidHD = false;
+		m_bSDHR = false;
 	}
 
 	~Video(void){}
@@ -225,6 +226,7 @@ public:
 	WORD VideoGetScannerAddress(DWORD nCycles, VideoScanner_e videoScannerAddr = VS_FullAddr);
 	bool VideoGetVblBarEx(const DWORD dwCyclesThisFrame);
 	bool VideoGetVblBar(const DWORD uExecutedCycles);
+	bool VideoGetSDHRState(void);
 
 	bool VideoGetSW80COL(void);
 	bool VideoGetSWDHIRES(void);
@@ -294,6 +296,7 @@ private:
 	bool g_bVideoScannerNTSC;	// NTSC video scanning (or PAL)
 	COLORREF g_nMonochromeRGB;	// saved to Registry
 	bool m_hasVidHD;
+	bool m_bSDHR;
 
 	static const UINT kVideoRomSize8K = kVideoRomSize4K*2;
 	static const UINT kVideoRomSize16K = kVideoRomSize8K*2;
