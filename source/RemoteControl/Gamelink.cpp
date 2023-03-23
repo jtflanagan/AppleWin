@@ -27,6 +27,8 @@
 #include "Gamelink.h"
 #include "Windows/AppleWin.h"
 #include "Windows/Win32Frame.h"
+#include "CardManager.h"
+#include "VidHD.h"
 
 //------------------------------------------------------------------------------
 // Local Definitions
@@ -50,6 +52,8 @@ static bool g_bEnableGamelink;
 static bool g_bEnableTrackOnly;
 
 static UINT g_membase_size;
+
+static uint32_t m_previousVideoMode;
 
 static GameLink::sSharedMemoryMap_R4* g_p_shared_memory;
 static GameLink::sSharedMMapBuffer_R1* g_p_outbuf;
@@ -248,6 +252,36 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 	else if (strcmp(com, ":shutdown") == 0)
 	{
 		PostMessageW(GetFrame().g_hFrameWindow, WM_DESTROY, 0, 0);
+	}
+	else if (strcmp(com, ":sdhr") == 0)
+	{
+		IOWrite[2](0, 0xC029, 0xd1, 0, 0);
+		/*
+		VidHDCard* vidHD = NULL;
+		if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		{
+			vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+			if (!vidHD->IsSDHR())
+			{
+				m_previousVideoMode = GetVideo().GetVideoMode();
+				GetVideo().SetVideoMode(VF_SHR);
+				GetVideo().VideoSetMode(0, 0xd1, 0, 0, 0);
+			}
+		}
+		*/
+	}
+	else if (strcmp(com, ":nosdhr") == 0)
+	{
+		VidHDCard* vidHD = NULL;
+		if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		{
+			vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+			if (vidHD->IsSDHR())
+			{
+				GetVideo().VideoSetMode(0, 0xc1, 0, 0, 0);
+				GetVideo().SetVideoMode(m_previousVideoMode);
+			}
+		}
 	}
 }
 
