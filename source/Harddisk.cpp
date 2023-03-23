@@ -382,7 +382,7 @@ bool HarddiskInterfaceCard::Insert(const int iDrive, const std::string& pathname
 	// If we've just loaded the boot drive, tell Remote Control
 	if (iDrive == 0)
 	{
-		g_RemoteControlMgr.setLoadedHDInfo(g_HardDisk[iDrive].imagehandle);
+		g_RemoteControlMgr.setLoadedHDInfo(m_hardDiskDrive[iDrive].m_imagehandle);
 	}
 	// RIK END
 
