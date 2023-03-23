@@ -423,6 +423,12 @@ void CPageConfig::InitOptions(HWND hWnd)
 	CheckDlgButton(hWnd, IDC_CHECK_VIDHD_IN_SLOT3, bIsSlot3VidHD ? BST_CHECKED : BST_UNCHECKED);
 	const BOOL enableVidHD = slot3 == CT_Empty || bIsSlot3VidHD;
 	EnableWindow(GetDlgItem(hWnd, IDC_CHECK_VIDHD_IN_SLOT3), enableVidHD);
+
+	// RIK: load remote control settings
+	const bool bIsRCEnabled = RemoteControlManager::isRemoteControlEnabled();
+	CheckDlgButton(hWnd, IDC_CHECK_REMOTECONTROL, bIsRCEnabled ? BST_CHECKED : BST_UNCHECKED);
+	const bool bIsTrackEnabled = RemoteControlManager::isTrackOnlyEnabled();
+	CheckDlgButton(hWnd, IDC_CHECK_RC_TRACKONLY, bIsTrackEnabled ? BST_CHECKED : BST_UNCHECKED);
 }
 
 // Config->Computer: Menu item to eApple2Type
