@@ -255,20 +255,17 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 	}
 	else if (strcmp(com, ":sdhr") == 0)
 	{
-		IOWrite[2](0, 0xC029, 0xd1, 0, 0);
-		/*
 		VidHDCard* vidHD = NULL;
 		if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
 		{
 			vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
 			if (!vidHD->IsSDHR())
 			{
-				m_previousVideoMode = GetVideo().GetVideoMode();
-				GetVideo().SetVideoMode(VF_SHR);
-				GetVideo().VideoSetMode(0, 0xd1, 0, 0, 0);
+				IOWrite[2](0, 0xC029, 1, 0xc1, 0);
+				//m_previousVideoMode = GetVideo().GetVideoMode();
+				//GetVideo().VideoSetMode(0, 0x29, 0xd1, 0, 0);
 			}
 		}
-		*/
 	}
 	else if (strcmp(com, ":nosdhr") == 0)
 	{
@@ -278,8 +275,9 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 			vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
 			if (vidHD->IsSDHR())
 			{
-				GetVideo().VideoSetMode(0, 0xc1, 0, 0, 0);
-				GetVideo().SetVideoMode(m_previousVideoMode);
+				IOWrite[2](0, 0xC029, 1, 0, 0);
+				//GetVideo().VideoSetMode(0, 0x29, 0, 0, 0);
+				//GetVideo().SetVideoMode(m_previousVideoMode);
 			}
 		}
 	}
