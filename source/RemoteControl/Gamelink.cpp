@@ -58,6 +58,18 @@ static uint32_t m_previousVideoMode;
 static GameLink::sSharedMemoryMap_R4* g_p_shared_memory;
 static GameLink::sSharedMMapBuffer_R1* g_p_outbuf;
 
+enum class SDHRControls
+{
+	DISABLE = 0,
+	ENABLE,
+	PROCESS,
+	RESET
+};
+
+const UINT g_cxSHR = 0xc029;		// VidHD SHR Activation 0xCxxx address
+const UINT g_cxSDHR_ctrl = 0xc0b0;	// SDHR control byte 0xCxxx address
+const UINT g_cxSDHR_data = 0xc0b1;	// SDHR data byte 0xCxxx address
+
 #define MEMORY_MAP_CORE_SIZE sizeof( GameLink::sSharedMemoryMap_R4 )
 
 
@@ -226,6 +238,7 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 	if (payload <= 1 || payload > 128)
 		return;
 
+	// payload is the length of the command string
 	cmd->payload = 0;
 	char* com = (char*)(cmd->data);
 	com[payload] = 0;
@@ -235,7 +248,53 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 		//
 		// Decode
 
-	if (strcmp(com, ":reset") == 0)
+	if (strncmp(":sdhr_", com, strlen(":sdhr_")) == 0)		// all SDHR commands are prefixed with "sdhr_"
+	{
+		com += strlen(":sdhr_");
+		if (strstr(com, "write") == com)
+		{
+			// sdhr_write command starts with ":sdhr_write" and follows with a single byte to write
+			char writeByte = 0;		// byte to write, defaults to 0 if no byte sent after ":sdhr_write"
+			if (payload >= strlen(":sdhr_write") + sizeof(char))
+				char writeByte = com[strlen("write")];
+			IOWrite[0xB](0, g_cxSDHR_data, 1, (BYTE)payload, 0);
+		}
+		else if (strcmp(com, "process") == 0)
+		{
+			IOWrite[0xB](0, g_cxSDHR_ctrl, 1, (BYTE)SDHRControls::PROCESS, 0);
+		}
+		else if (strcmp(com, "on") == 0)
+		{
+			VidHDCard* vidHD = NULL;
+			if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+			{
+				vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+				if (!vidHD->IsSDHR())
+				{
+					IOWrite[2](0, g_cxSHR, 1, 0xc1, 0);	// Activate SHR first
+					IOWrite[0xB](0, g_cxSDHR_ctrl, 1, (BYTE)SDHRControls::ENABLE, 0);	// Activate SDHR
+				}
+			}
+		}
+		else if (strcmp(com, "off") == 0)
+		{
+			VidHDCard* vidHD = NULL;
+			if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+			{
+				vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+				if (vidHD->IsSDHR())
+				{
+					IOWrite[0xB](0, g_cxSDHR_ctrl, 1, (BYTE)SDHRControls::DISABLE, 0);	// Deactivate SDHR
+					IOWrite[2](0, g_cxSHR, 1, 0, 0);		// Deactivate SHR
+				}
+			}
+		}
+		else if (strcmp(com, "reset") == 0)
+		{
+			IOWrite[0xB](0, g_cxSDHR_ctrl, 1, (BYTE)SDHRControls::RESET, 0);
+		}
+	}	// end if SDHR commands
+	else if (strcmp(com, ":reset") == 0)
 	{
 		PostMessage(GetFrame().g_hFrameWindow, WM_USER_BOOT, 0, 0);
 		//ProcessButtonClick(BTN_RUN);
@@ -252,34 +311,6 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 	else if (strcmp(com, ":shutdown") == 0)
 	{
 		PostMessageW(GetFrame().g_hFrameWindow, WM_DESTROY, 0, 0);
-	}
-	else if (strcmp(com, ":sdhr") == 0)
-	{
-		VidHDCard* vidHD = NULL;
-		if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
-		{
-			vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
-			if (!vidHD->IsSDHR())
-			{
-				IOWrite[2](0, 0xC029, 1, 0xc1, 0);
-				//m_previousVideoMode = GetVideo().GetVideoMode();
-				//GetVideo().VideoSetMode(0, 0x29, 0xd1, 0, 0);
-			}
-		}
-	}
-	else if (strcmp(com, ":nosdhr") == 0)
-	{
-		VidHDCard* vidHD = NULL;
-		if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
-		{
-			vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
-			if (vidHD->IsSDHR())
-			{
-				IOWrite[2](0, 0xC029, 1, 0, 0);
-				//GetVideo().VideoSetMode(0, 0x29, 0, 0, 0);
-				//GetVideo().SetVideoMode(m_previousVideoMode);
-			}
-		}
 	}
 }
 
