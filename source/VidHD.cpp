@@ -58,7 +58,11 @@
 void VidHDCard::Reset(const bool powerCycle)
 {
 	m_NEWVIDEO = 0;
-	GetVideo().SetVideoMode(GetVideo().GetVideoMode() & ~VF_SHR);
+	GetVideo().SetVideoMode(GetVideo().GetVideoMode() & ~(VF_SHR | VF_SDHR));
+	if (m_pVidHDSdhr) {
+		delete m_pVidHDSdhr;
+		m_pVidHDSdhr = NULL;
+	}
 }
 
 void VidHDCard::InitializeIO(LPBYTE pCxRomPeripheral)
@@ -80,6 +84,8 @@ BYTE __stdcall VidHDCard::IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, UL
 
 BYTE __stdcall VidHDCard::C0Write(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles)
 {
+	LogFileOutput("C0Write: %d %d %d %d %d\n", pc, addr, bWrite, value, nExecutedCycles);
+
 	VidHDCard* vidHD = NULL;
 	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
 		vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
@@ -129,27 +135,34 @@ void VidHDCard::ControlSDHR(BYTE value) {
 	switch (value) {
 	case 0: {
 		// disable sdhr
+		LogFileOutput("ControlSDHR: off\n");
 		if (m_pVidHDSdhr) {
 			m_pVidHDSdhr->ToggleSDHR(false);
+			GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
 		}
 	} break;
 	case 1: {
 		// enable sdhr
+		LogFileOutput("ControlSDHR: on\n");
 		if (!m_pVidHDSdhr) {
 			m_pVidHDSdhr = new VidHDSdhr();
 		}
 		m_pVidHDSdhr->ToggleSDHR(true);
+		GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
 	} break;
 	case 2: {
 		// process commands
+		LogFileOutput("ControlSDHR: process commands\n");
 		if (m_pVidHDSdhr) {
 			m_pVidHDSdhr->ProcessCommands();
 		}
 	} break;
 	case 3: {
 		// reset
+		LogFileOutput("ControlSDHR: reset\n");
 		delete m_pVidHDSdhr;
 		m_pVidHDSdhr = NULL;
+		GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
 	}
 	default: break;
 	}

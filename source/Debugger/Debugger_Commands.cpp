@@ -274,6 +274,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("DHGR1")       , CmdViewOutput_DHGR1  , CMD_VIEW_DHGR1 , "View Double Hi-res Page 1"              },
 		{TEXT("DHGR2")       , CmdViewOutput_DHGR2  , CMD_VIEW_DHGR2 , "View Double Hi-res Page 2"              },
 		{TEXT("SHR")         , CmdViewOutput_SHR    , CMD_VIEW_SHR   , "View Super Hi-res"                      },
+		{TEXT("SDHR")        , CmdViewOutput_SDHR   , CMD_VIEW_SDHR  , "View Super Duper Hi-res"                },
 	// Watch
 		{TEXT("W")           , CmdWatchAdd          , CMD_WATCH         , "Alias for WA (Watch Add)"                      },
 		{TEXT("WA")          , CmdWatchAdd          , CMD_WATCH_ADD     , "Add/Update address or symbol to watch"         },

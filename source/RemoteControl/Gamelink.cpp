@@ -66,7 +66,6 @@ enum class SDHRControls
 	RESET
 };
 
-const UINT g_cxSHR = 0xc029;		// VidHD SHR Activation 0xCxxx address
 const UINT g_cxSDHR_ctrl = 0xc0b0;	// SDHR control byte 0xCxxx address
 const UINT g_cxSDHR_data = 0xc0b1;	// SDHR data byte 0xCxxx address
 
@@ -271,7 +270,6 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 				vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
 				if (!vidHD->IsSDHR())
 				{
-					IOWrite[2](0, g_cxSHR, 1, 0xc1, 0);	// Activate SHR first
 					IOWrite[0xB](0, g_cxSDHR_ctrl, 1, (BYTE)SDHRControls::ENABLE, 0);	// Activate SDHR
 				}
 			}
@@ -285,7 +283,6 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 				if (vidHD->IsSDHR())
 				{
 					IOWrite[0xB](0, g_cxSDHR_ctrl, 1, (BYTE)SDHRControls::DISABLE, 0);	// Deactivate SDHR
-					IOWrite[2](0, g_cxSHR, 1, 0, 0);		// Deactivate SHR
 				}
 			}
 		}
