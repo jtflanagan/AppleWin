@@ -36,14 +36,17 @@ public:
 	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
 
 	static BYTE __stdcall IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
+	static BYTE __stdcall C0Write(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 
 	void VideoIOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 
 	bool IsSHR(void) { return (m_NEWVIDEO & 0xC0) == 0xC0; }	// 11000000 = Enable SHR(b7) | Linearize SHR video memory(b6)
-	bool IsSDHR(void) { return (m_NEWVIDEO & 0x40) == 0x40; }   // override SHR(b4) for SDHR.  This is ugly but easy, fix if we get real support
+	bool IsSDHR(void);
+	void ControlSDHR(BYTE value);
 	bool IsDHGRBlackAndWhite(void) { return (m_NEWVIDEO & (1 << 5)) ? true : false; }
 	bool IsWriteAux(void);
 
+	void SDHRWriteByte(BYTE value);
 	void SDHRWritePixels(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress);
 
 	static void UpdateSHRCell(bool is640Mode, bool isColorFillMode, uint16_t addrPalette, bgra_t* pVideoAddress, uint32_t a);
