@@ -6,9 +6,9 @@ class VidHDSdhr
 {
 public:
 	VidHDSdhr() {
-		shm_area = MemGetAuxPtr(0xc000);
-		bank = shm_area[0x7cff];
+		m_bEnabled = false;
 		error_flag = false;
+		memset(error_str, sizeof(error_str), 0);
 		memset(uploaded_data_region, sizeof(uploaded_data_region), 0);
 		memset(tileset_records, sizeof(tileset_records), 0);
 		memset(palette_records, sizeof(palette_records), 0);
@@ -37,7 +37,17 @@ public:
 		}
 
 	}
-	bool ProcessCommands();
+	void ToggleSDHR(bool value) {
+		m_bEnabled = value;
+	}
+
+	bool IsSdhrEnabled(void) {
+		return m_bEnabled;
+	}
+
+	void SDHRWriteByte(BYTE byte);
+
+	bool ProcessCommands(void);
 
 	bgra_t GetPixel(uint16_t vert, uint16_t horz);
 
@@ -54,6 +64,7 @@ public:
 		return true;
 	}
 private:
+	bool m_bEnabled;
 	struct TilesetRecord {
 		uint8_t depth;
 		uint64_t xdim;
@@ -86,12 +97,11 @@ private:
 		uint8_t* bitmask_tile_indexes = NULL;
 	};
 
-	static const uint16_t cmd_buffer_size = 15 * 1024;
 	static const uint16_t screen_xcount = 640;
 	static const uint16_t screen_ycount = 360;
-	BYTE* shm_area;
-	BYTE bank;
+	std::vector<uint8_t> command_buffer;
 	bool error_flag;
+	char error_str[256];
 	uint8_t uploaded_data_region[256 * 256 * 256];
 	TilesetRecord tileset_records[256];
 	PaletteRecord palette_records[256];

@@ -24,6 +24,7 @@ enum ShdrCmd_e {
 struct UploadDataCmd {
 	uint8_t dest_addr_med;
 	uint8_t dest_addr_high;
+	uint8_t source_addr_med;
 	uint8_t num_256b_pages;
 };
 
@@ -137,13 +138,19 @@ struct UpdateWindowEnableCmd {
 
 #pragma pack(pop)
 
+void VidHDSdhr::SDHRWriteByte(BYTE value) {
+	command_buffer.push_back((uint8_t)value);
+
+}
+
+
 void VidHDSdhr::CommandError(const char* err) {
-	strcpy((char*)shm_area + 0x7f00, err);
+	strcpy(error_str, err);
 	error_flag = true;
 }
 
-bool VidHDSdhr::CheckCommandLength(BYTE* p, BYTE* b, size_t sz) {
-	if (p - b + sz > cmd_buffer_size) {
+bool VidHDSdhr::CheckCommandLength(BYTE* p, BYTE* e, size_t sz) {
+	if (e - p < sz) {
 		CommandError("Insufficient buffer space");
 		return false;
 	}
@@ -151,7 +158,7 @@ bool VidHDSdhr::CheckCommandLength(BYTE* p, BYTE* b, size_t sz) {
 }
 
 bgra_t VidHDSdhr::GetPixel(uint16_t vert, uint16_t horz) {
-	uint64_t pixel_offset = vert * screen_xcount + horz;
+	uint64_t pixel_offset = (uint64_t)vert * screen_xcount + horz;
 	bgra_t rgb = { 0 };
 	rgb.r = screen_red[pixel_offset] * 16;
 	rgb.g = screen_green[pixel_offset] * 16;
@@ -161,46 +168,36 @@ bgra_t VidHDSdhr::GetPixel(uint16_t vert, uint16_t horz) {
 }
 
 bool VidHDSdhr::ProcessCommands() {
-	if (shm_area[0x7cff] == bank) return true;
 	if (error_flag) {
 		return false;
 	}
-	bank = shm_area[0x7cff];
-	BYTE* begin = shm_area + bank * cmd_buffer_size;
+	BYTE* begin = &command_buffer[0];
+	BYTE* end = begin + command_buffer.size();
 	BYTE* p = begin;
 
-	while (true) {
-		if (CheckCommandLength(p, begin, 2)) return false;
+	while (begin < end) {
+		if (CheckCommandLength(p, end, 2)) return false;
 		uint16_t message_length = *((uint16_t*)p);
-		if (CheckCommandLength(p, begin, message_length)) return false;
+		if (CheckCommandLength(p, end, message_length)) return false;
 		p += 2;
 		BYTE cmd = *p++;
 		switch (cmd) {
 		case SHDR_CMD_UPLOAD_DATA: {
-			if (CheckCommandLength(p, begin, sizeof(UploadDataCmd))) return false;
-			if (p - begin != 2) {
-				// UploadData needs to be the first (and only) command in the buffer,
-				// because it targets a special 256-byte aligned location in the buffer
-				// to allow easier loading on the apple-side.
-				CommandError("UploadData not first (and only) command in buffer");
-				return false;
-			}
+			if (CheckCommandLength(p, end, sizeof(UploadDataCmd))) return false;
 			UploadDataCmd* cmd = (UploadDataCmd*)p;
-			if (cmd->num_256b_pages > 12 * 4) {
-				CommandError("UploadData attempting to load more than 12k data");
+			if (cmd->num_256b_pages > 256 - cmd->source_addr_med) {
+				CommandError("UploadData attempting to load past top of memory");
 				return false;
 			}
-			uint64_t dest_offset = DataOffset(256, cmd->dest_addr_med, cmd->dest_addr_high);
+			uint64_t dest_offset = DataOffset(0, cmd->dest_addr_med, cmd->dest_addr_high);
 			uint64_t data_size = (uint64_t) 256 * cmd->num_256b_pages;
 			if (!DataSizeCheck(dest_offset, data_size)) {
 				return false;
 			}
-			memcpy(begin + 0x400, uploaded_data_region + dest_offset, data_size);
-			// process no more commands in this run
-			return true;
+			memcpy(MemGetMainPtr((uint16_t)cmd->source_addr_med * 256), uploaded_data_region + dest_offset, data_size);
 		} break;
 		case SHDR_CMD_DEFINE_TILESET: {
-			if (CheckCommandLength(p, begin, sizeof(DefineTilesetCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(DefineTilesetCmd))) return false;
 			DefineTilesetCmd* cmd = (DefineTilesetCmd*)p;
 			switch (cmd->depth) {
 			case 1:
@@ -270,7 +267,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_DEFINE_PALETTE: {
-			if (CheckCommandLength(p, begin, sizeof(DefinePaletteCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(DefinePaletteCmd))) return false;
 			DefinePaletteCmd* cmd = (DefinePaletteCmd*)p;
 			uint64_t data_region_offset = DataOffset(cmd->data_low, cmd->data_med, cmd->data_high);
 			uint64_t data_size = 48;  //16 entries * 3 bytes RGB
@@ -290,7 +287,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_DEFINE_PALETTE_IMMEDIATE: {
-			if (CheckCommandLength(p, begin, sizeof(DefinePaletteImmediateCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(DefinePaletteImmediateCmd))) return false;
 			DefinePaletteImmediateCmd* cmd = (DefinePaletteImmediateCmd*)p;
 			uint64_t data_size;
 			switch (cmd->depth) {
@@ -324,7 +321,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_DEFINE_WINDOW: {
-			if (CheckCommandLength(p, begin, sizeof(DefineWindowCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
 			DefineWindowCmd* cmd = (DefineWindowCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (r->screen_xcount > 640) {
@@ -360,11 +357,11 @@ bool VidHDSdhr::ProcessCommands() {
 
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SET_ALL: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowSetAllCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetAllCmd))) return false;
 			UpdateWindowSetAllCmd* cmd = (UpdateWindowSetAllCmd*)p;
 			Window* r = windows + cmd->window_index;
-			if (cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
-				cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
+			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
+				(uint64_t)cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
 				CommandError("tile update region exceeds tile dimensions");
 				return false;
 			}
@@ -394,11 +391,11 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SINGLE_TILESET: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowSingleTilesetCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowSingleTilesetCmd))) return false;
 			UpdateWindowSingleTilesetCmd* cmd = (UpdateWindowSingleTilesetCmd*)p;
 			Window* r = windows + cmd->window_index;
-			if (cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
-				cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
+			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
+				(uint64_t)cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
 				CommandError("tile update region exceeds tile dimensions");
 				return false;
 			}
@@ -427,11 +424,11 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SINGLE_PALETTE: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowSinglePaletteCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowSinglePaletteCmd))) return false;
 			UpdateWindowSinglePaletteCmd* cmd = (UpdateWindowSinglePaletteCmd*)p;
 			Window* r = windows + cmd->window_index;
-			if (cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
-				cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
+			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
+				(uint64_t)cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
 				CommandError("tile update region exceeds tile dimensions");
 				return false;
 			}
@@ -460,11 +457,11 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SINGLE_BOTH: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowSingleBothCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowSingleBothCmd))) return false;
 			UpdateWindowSingleBothCmd* cmd = (UpdateWindowSingleBothCmd*)p;
 			Window* r = windows + cmd->window_index;
-			if (cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
-				cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
+			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
+				(uint64_t)cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
 				CommandError("tile update region exceeds tile dimensions");
 				return false;
 			}
@@ -492,7 +489,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SHIFT_TILES: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowShiftTilesCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowShiftTilesCmd))) return false;
 			UpdateWindowShiftTilesCmd* cmd = (UpdateWindowShiftTilesCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (cmd->x_dir < -1 || cmd->x_dir > 1 || cmd->y_dir < -1 || cmd->y_dir > 1) {
@@ -547,14 +544,14 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SET_WINDOW_POSITION: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowSetWindowPositionCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetWindowPositionCmd))) return false;
 			UpdateWindowSetWindowPositionCmd* cmd = (UpdateWindowSetWindowPositionCmd*)p;
 			Window* r = windows + cmd->window_index;
 			r->screen_xbegin = cmd->screen_xbegin;
 			r->screen_ybegin = cmd->screen_ybegin;
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_ADJUST_WINDOW_VIEW: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowAdjustWindowViewCommand))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowAdjustWindowViewCommand))) return false;
 			UpdateWindowAdjustWindowViewCommand* cmd = (UpdateWindowAdjustWindowViewCommand*)p;
 			Window* r = windows + cmd->window_index;
 			if ((uint64_t)cmd->tile_ybegin + r->tile_ycount * r->tile_ydim > r->screen_ycount ||
@@ -566,7 +563,7 @@ bool VidHDSdhr::ProcessCommands() {
 			r->tile_ybegin = cmd->tile_ybegin;
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_SET_BITMASKS: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowSetBitmasksCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetBitmasksCmd))) return false;
 			UpdateWindowSetBitmasksCmd* cmd = (UpdateWindowSetBitmasksCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (cmd->tile_xcount != r->tile_xcount ||
@@ -606,7 +603,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SHDR_CMD_UPDATE_WINDOW_ENABLE: {
-			if (CheckCommandLength(p, begin, sizeof(UpdateWindowEnableCmd))) return false;
+			if (CheckCommandLength(p, end, sizeof(UpdateWindowEnableCmd))) return false;
 			UpdateWindowEnableCmd* cmd = (UpdateWindowEnableCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (!r->tile_xcount || !r->tile_ycount) {

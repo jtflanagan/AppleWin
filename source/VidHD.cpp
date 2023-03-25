@@ -63,7 +63,7 @@ void VidHDCard::Reset(const bool powerCycle)
 
 void VidHDCard::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-	RegisterIoHandler(m_slot, IO_Null, IO_Null, &VidHDCard::IORead, IO_Null, this, NULL);
+	RegisterIoHandler(m_slot, IO_Null, &VidHDCard::C0Write, &VidHDCard::IORead, IO_Null, this, NULL);
 }
 
 BYTE __stdcall VidHDCard::IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles)
@@ -76,6 +76,22 @@ BYTE __stdcall VidHDCard::IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, UL
 	case 2: return 0x4C;
 	}
 	return IO_Null(pc, addr, bWrite, value, nExecutedCycles);
+}
+
+BYTE __stdcall VidHDCard::C0Write(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles)
+{
+	VidHDCard* vidHD = NULL;
+	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+	else
+		return 0;
+	switch (addr & 0x0f) {
+	case 0x00:
+		vidHD->ControlSDHR(value); break;
+	case 0x01:
+		vidHD->SDHRWriteByte(value); break;
+	}
+	return 0;
 }
 
 // NB. VidHD has no support for reading the IIgs video registers (from an earlier Apple II)
@@ -96,6 +112,46 @@ void VidHDCard::VideoIOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG 
 	case 0x29: m_NEWVIDEO = value;			break;
 	case 0x34: m_BORDERCOLOR = value;		break;
 	case 0x35: m_SHADOW = value;			break;
+	}
+}
+
+bool VidHDCard::IsSDHR() {
+	return m_pVidHDSdhr && m_pVidHDSdhr->IsSdhrEnabled();
+}
+
+void VidHDCard::SDHRWriteByte(BYTE value) {
+	if (m_pVidHDSdhr) {
+		m_pVidHDSdhr->SDHRWriteByte(value);
+	}
+}
+
+void VidHDCard::ControlSDHR(BYTE value) {
+	switch (value) {
+	case 0: {
+		// disable sdhr
+		if (m_pVidHDSdhr) {
+			m_pVidHDSdhr->ToggleSDHR(false);
+		}
+	} break;
+	case 1: {
+		// enable sdhr
+		if (!m_pVidHDSdhr) {
+			m_pVidHDSdhr = new VidHDSdhr();
+		}
+		m_pVidHDSdhr->ToggleSDHR(true);
+	} break;
+	case 2: {
+		// process commands
+		if (m_pVidHDSdhr) {
+			m_pVidHDSdhr->ProcessCommands();
+		}
+	} break;
+	case 3: {
+		// reset
+		delete m_pVidHDSdhr;
+		m_pVidHDSdhr = NULL;
+	}
+	default: break;
 	}
 }
 
