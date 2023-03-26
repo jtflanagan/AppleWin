@@ -159,6 +159,8 @@ static void ContinueExecution(void)
 
 	//
 
+	if (g_RemoteControlMgr.isRemoteControlEnabled())
+		g_RemoteControlMgr.getInput();
 	bool bScrollLock_FullSpeed = false;
 	if (GetPropertySheet().GetScrollLockToggle())
 	{
