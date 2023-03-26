@@ -28,6 +28,7 @@
 #include "Windows/AppleWin.h"
 #include "Windows/Win32Frame.h"
 #include "CardManager.h"
+#include "CPU.h"	// to get PC register
 #include "VidHD.h"
 
 //------------------------------------------------------------------------------
@@ -256,7 +257,7 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 			char writeByte = 0;		// byte to write, defaults to 0 if no byte sent after ":sdhr_write"
 			if (payload >= strlen(":sdhr_write") + sizeof(char))
 				char writeByte = com[strlen("write")];
-			IOWrite[0xB](0, g_cxSDHR_data, 1, (BYTE)payload, 0);
+			IOWrite[0xB](0, g_cxSDHR_data, 1, (BYTE)writeByte, 0);
 		}
 		else if (strcmp(com, "process") == 0)
 		{
@@ -459,7 +460,21 @@ int GameLink::In( GameLink::sSharedMMapInput_R2* p_input,
 		}
 		else
 		{
-			if ( g_p_shared_memory->input.ready )
+			// Have input_other clobber input. It has higher priorty
+			if (g_p_shared_memory->input_other.ready)
+			{
+				// Copy client input out of shared memory
+				memcpy(p_input, &(g_p_shared_memory->input_other), sizeof(sSharedMMapInput_R2));
+
+				// Clear remote delta, prevent counting more than once.
+				g_p_shared_memory->input_other.mouse_dx = 0;
+				g_p_shared_memory->input_other.mouse_dy = 0;
+
+				g_p_shared_memory->input_other.ready = 0;
+
+				ready = 1; // Got some input
+			}
+			else if ( g_p_shared_memory->input.ready )
 			{
 				// Copy client input out of shared memory
 				memcpy( p_input, &( g_p_shared_memory->input ), sizeof( sSharedMMapInput_R2 ) );
@@ -596,8 +611,11 @@ void GameLink::Out( const UINT16 frame_width,
 				address = g_p_shared_memory->peek.addr[ pindex ];
 
 				UINT8 data;
-				// valid?
-				if ( address < g_membase_size )
+				if (address == (UINT)sSharedMMapPeek_R2::PEEK_SPECIAL_PC_H)
+					data = regs.pc >> 8;
+				else if (address == (UINT)sSharedMMapPeek_R2::PEEK_SPECIAL_PC_L)
+					data = (UINT8)regs.pc;
+				else if ( address < g_membase_size )
 				{
 					data = p_sysmem[ address ]; // read data
 				}

@@ -53,6 +53,10 @@ namespace GameLink
 		UINT8 ready;
 		UINT8 mouse_btn;
 		UINT keyb_state[ 8 ];
+
+		enum { READY_NO = 0 };					// Input not ready
+		enum { READY_GC = 1 };					// Input from GC
+		enum { READY_OTHER = 17 };				// Input from other app
 	};
 
 	//
@@ -62,6 +66,8 @@ namespace GameLink
 	//
 	struct sSharedMMapPeek_R2
 	{
+		enum { PEEK_SPECIAL_PC_H = UINT_MAX - 1 };	// Set this address to request program counter high byte
+		enum { PEEK_SPECIAL_PC_L = UINT_MAX - 2 };	// Set this address to request program counter low byte
 		enum { PEEK_LIMIT = 16 * 1024 };
 
 		UINT addr_count;
@@ -130,6 +136,9 @@ namespace GameLink
 
 		// added for protocol v4
 		UINT ram_size;
+
+		// added a simpler, other input channel that isn't clobbered by gridcarto
+		sSharedMMapInput_R2 input_other;
 	};
 
 #pragma pack( pop )
