@@ -61,6 +61,7 @@ enum VideoFlag_e
 	VF_PAGE3  = 0x00000200,		// Pseudo Page $60 (Poorman's heatmap)
 	VF_PAGE4  = 0x00000400,		// Pseudo Page $80 (Poorman's heatmap)
 	VF_PAGE5  = 0x00000800,		// Pseudo Page $A0 (Poorman's heatmap)
+	VF_SDHR   = 0x00001000,     // For VidHD's support for SDHR mode
 };
 
 enum AppleFont_e
@@ -192,7 +193,6 @@ public:
 		g_videoRomSize = 0;
 		g_videoRomRockerSwitch = false;
 		m_hasVidHD = false;
-		m_bSDHR = false;
 	}
 
 	~Video(void){}
@@ -226,7 +226,6 @@ public:
 	WORD VideoGetScannerAddress(DWORD nCycles, VideoScanner_e videoScannerAddr = VS_FullAddr);
 	bool VideoGetVblBarEx(const DWORD dwCyclesThisFrame);
 	bool VideoGetVblBar(const DWORD uExecutedCycles);
-	bool VideoGetSDHRState(void);
 
 	bool VideoGetSW80COL(void);
 	bool VideoGetSWDHIRES(void);
@@ -296,7 +295,6 @@ private:
 	bool g_bVideoScannerNTSC;	// NTSC video scanning (or PAL)
 	COLORREF g_nMonochromeRGB;	// saved to Registry
 	bool m_hasVidHD;
-	bool m_bSDHR;
 
 	static const UINT kVideoRomSize8K = kVideoRomSize4K*2;
 	static const UINT kVideoRomSize16K = kVideoRomSize8K*2;

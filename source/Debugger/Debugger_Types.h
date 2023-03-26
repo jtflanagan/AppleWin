@@ -521,6 +521,7 @@
 		, CMD_VIEW_DHGR1
 		, CMD_VIEW_DHGR2
 		, CMD_VIEW_SHR
+		, CMD_VIEW_SDHR
 // Watch
 		, CMD_WATCH
 		, CMD_WATCH_ADD
@@ -791,6 +792,7 @@
 	Update_t CmdViewOutput_DHGR1   (int nArgs);
 	Update_t CmdViewOutput_DHGR2   (int nArgs);
 	Update_t CmdViewOutput_SHR     (int nArgs);
+	Update_t CmdViewOutput_SDHR    (int nArgs);
 // Watch
 	Update_t CmdWatch              (int nArgs);
 	Update_t CmdWatchAdd           (int nArgs);

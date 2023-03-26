@@ -48,6 +48,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define  SW_PAGE2         (g_uVideoMode & VF_PAGE2)
 #define  SW_TEXT          (g_uVideoMode & VF_TEXT)
 #define  SW_SHR           (g_uVideoMode & VF_SHR)
+#define  SW_SDHR          (g_uVideoMode & VF_SDHR)
 
 //-------------------------------------
 
@@ -208,13 +209,19 @@ BYTE Video::VideoSetMode(WORD pc, WORD address, BYTE write, BYTE d, ULONG uExecu
 		case 0x5F: if (!IS_APPLE2) g_uVideoMode &= ~VF_DHIRES;  break;
 	}
 
-	if (vidHD && vidHD->IsSHR()) {
-		g_uVideoMode |= VF_SHR;
-		m_bSDHR = vidHD->IsSDHR();
-	}
-	else {
-		g_uVideoMode &= ~VF_SHR;
-		m_bSDHR = false;
+	if (vidHD) {
+		if (vidHD->IsSDHR()) {
+			g_uVideoMode &= ~VF_SHR;
+			g_uVideoMode |= VF_SDHR;
+		}
+		else if (vidHD->IsSHR()) {
+			g_uVideoMode |= VF_SHR;
+			g_uVideoMode &= ~VF_SDHR;
+		}
+		else {
+			g_uVideoMode &= ~VF_SHR;
+			g_uVideoMode &= ~VF_SDHR;
+		}
 	}
 
 	if (!IS_APPLE2)
@@ -231,10 +238,6 @@ BYTE Video::VideoSetMode(WORD pc, WORD address, BYTE write, BYTE d, ULONG uExecu
 }
 
 //===========================================================================
-
-bool Video::VideoGetSDHRState(void) {
-	return m_bSDHR;
-}
 
 bool Video::VideoGetSW80COL(void)
 {
