@@ -104,6 +104,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	#define VIDEO_SCANNER_Y_MIXED   160 // num scanlins for mixed graphics + text
 	#define VIDEO_SCANNER_Y_DISPLAY 192 // max displayable scanlines
 	#define VIDEO_SCANNER_Y_DISPLAY_IIGS 200
+    #define VIDEO_SCANNER_Y_DISPLAY_SDHR 180 // 360 displayed at two scanlines per vertical clock
 
 	// These 3 vars are initialized in NTSC_VideoInit()
 	static bgra_t* g_pVideoAddress = 0;
@@ -760,8 +761,9 @@ inline void updateVideoScannerAddress()
 	}
 
 	if (g_pFuncUpdateGraphicsScreen == updateScreenSDHR) {
-		g_pVideoAddress = g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_IIGS ? g_pScanLines[2 * g_nVideoClockVert + 20] : g_pScanLines[0];
-		g_pVideoAddress2 = g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_IIGS ? g_pScanLines[2 * g_nVideoClockVert + 21] : g_pScanLines[0];
+		// Draw lines on vertical clocks 0 through 180, two lines per clock, centered with 20 blank lines above and below
+		g_pVideoAddress = g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR ? g_pScanLines[2 * g_nVideoClockVert + 20] : g_pScanLines[0];
+		g_pVideoAddress2 = g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR ? g_pScanLines[2 * g_nVideoClockVert + 21] : g_pScanLines[0];
 		return;
 	}
 
@@ -1860,16 +1862,16 @@ void updateScreenSDHR(long cycles6502)
 	// since there are a maximum of 262 vertical scanlines, but we write out 360, we update two scanlines per line between 0 and 179
 	for (; cycles6502 > 0; --cycles6502)
 	{
-		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_IIGS) {
+		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR) {
 			if (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_START) {
 
 				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress);
-				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert + 1, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress);
+				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert + 1, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress2);
 				g_pVideoAddress += 16;
 				g_pVideoAddress2 += 16;
-				updateVideoScannerHorzEOL_SHR();
 			}
 		}
+		updateVideoScannerHorzEOL_SHR();
 	}
 	return;
 }
@@ -2006,7 +2008,7 @@ void NTSC_SetVideoMode( uint32_t uVideoModeFlags, bool bDelay/*=false*/ )
 	g_uNewVideoModeFlags = uVideoModeFlags;
 
 	if (uVideoModeFlags & VF_SDHR) {
-		LogFileOutput("NTSC_SetVideoMode SDHR\n");
+		GetVideo().ClearFrameBuffer(); // SDHR can get screen residue from other modes
 		g_pFuncUpdateGraphicsScreen = updateScreenSDHR;
 		g_pFuncUpdateTextScreen = updateScreenSDHR;
 		return;
@@ -2014,13 +2016,10 @@ void NTSC_SetVideoMode( uint32_t uVideoModeFlags, bool bDelay/*=false*/ )
 
 	if (uVideoModeFlags & VF_SHR)
 	{
-		LogFileOutput("NTSC_SetVideoMode SHR\n");
 		g_pFuncUpdateGraphicsScreen = updateScreenSHR;
 		g_pFuncUpdateTextScreen = updateScreenSHR;
 		return;
 	}
-	LogFileOutput("NTSC_SetVideoMode something else\n");
-
 
 	if (g_pFuncUpdateGraphicsScreen == updateScreenSHR && !(uVideoModeFlags & VF_SHR))
 	{

@@ -256,7 +256,7 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 			// sdhr_write command starts with ":sdhr_write" and follows with a single byte to write
 			char writeByte = 0;		// byte to write, defaults to 0 if no byte sent after ":sdhr_write"
 			if (payload >= strlen(":sdhr_write") + sizeof(char))
-				char writeByte = com[strlen("write")];
+				writeByte = com[strlen("write")];
 			IOWrite[0xB](0, g_cxSDHR_data, 1, (BYTE)writeByte, 0);
 		}
 		else if (strcmp(com, "process") == 0)

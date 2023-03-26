@@ -150,7 +150,6 @@ struct UpdateWindowEnableCmd {
 
 void VidHDSdhr::SDHRWriteByte(BYTE value) {
 	command_buffer.push_back((uint8_t)value);
-
 }
 
 
@@ -160,7 +159,8 @@ void VidHDSdhr::CommandError(const char* err) {
 }
 
 bool VidHDSdhr::CheckCommandLength(BYTE* p, BYTE* e, size_t sz) {
-	if (e - p < sz) {
+	size_t command_length = e - p;
+	if (command_length < sz) {
 		CommandError("Insufficient buffer space");
 		return false;
 	}
@@ -232,19 +232,25 @@ bool VidHDSdhr::ProcessCommands() {
 	if (error_flag) {
 		return false;
 	}
+	if (command_buffer.empty()) {
+		//nothing to do
+		return true;
+	}
 	BYTE* begin = &command_buffer[0];
 	BYTE* end = begin + command_buffer.size();
 	BYTE* p = begin;
 
 	while (begin < end) {
-		if (CheckCommandLength(p, end, 2)) return false;
+		if (!CheckCommandLength(p, end, 2)) {
+			return false;
+		}
 		uint16_t message_length = *((uint16_t*)p);
-		if (CheckCommandLength(p, end, message_length)) return false;
+		if (!CheckCommandLength(p, end, message_length)) return false;
 		p += 2;
 		BYTE cmd = *p++;
 		switch (cmd) {
 		case SDHR_CMD_UPLOAD_DATA: {
-			if (CheckCommandLength(p, end, sizeof(UploadDataCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UploadDataCmd))) return false;
 			UploadDataCmd* cmd = (UploadDataCmd*)p;
 			if (cmd->num_256b_pages > 256 - cmd->source_addr_med) {
 				CommandError("UploadData attempting to load past top of memory");
@@ -258,7 +264,7 @@ bool VidHDSdhr::ProcessCommands() {
 			memcpy(MemGetMainPtr((uint16_t)cmd->source_addr_med * 256), uploaded_data_region + dest_offset, data_size);
 		} break;
 		case SDHR_CMD_DEFINE_TILESET: {
-			if (CheckCommandLength(p, end, sizeof(DefineTilesetCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(DefineTilesetCmd))) return false;
 			DefineTilesetCmd* cmd = (DefineTilesetCmd*)p;
 			switch (cmd->depth) {
 			case 1:
@@ -282,18 +288,8 @@ bool VidHDSdhr::ProcessCommands() {
 			uint8_t* source_p = uploaded_data_region + data_region_offset;
 			DefineTileset(cmd->tileset_index, cmd->depth, cmd->num_entries, cmd->xdim, cmd->ydim, load_data_size, source_p);
 		} break;
-			//struct DefineTilesetCmd {
-//	uint8_t tileset_index;
-//	uint8_t depth;
-//	uint8_t num_entries;
-//	uint8_t xdim;
-//	uint8_t ydim;
-//	uint8_t data_low;
-//	uint8_t data_med;
-//	uint8_t data_high;
-//};
 		case SDHR_CMD_DEFINE_TILESET_IMMEDIATE: {
-			if (CheckCommandLength(p, end, sizeof(DefineTilesetImmediateCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(DefineTilesetImmediateCmd))) return false;
 			DefineTilesetImmediateCmd* cmd = (DefineTilesetImmediateCmd*)p;
 			switch (cmd->depth) {
 			case 1:
@@ -327,7 +323,7 @@ bool VidHDSdhr::ProcessCommands() {
 			DefineTileset(cmd->tileset_index, cmd->depth, cmd->num_entries, cmd->xdim, cmd->ydim, data_size, cmd->data);
 		} break;
 		case SDHR_CMD_DEFINE_PALETTE: {
-			if (CheckCommandLength(p, end, sizeof(DefinePaletteCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(DefinePaletteCmd))) return false;
 			DefinePaletteCmd* cmd = (DefinePaletteCmd*)p;
 			uint64_t data_region_offset = DataOffset(cmd->data_low, cmd->data_med, cmd->data_high);
 			uint64_t data_size = 48;  //16 entries * 3 bytes RGB
@@ -347,7 +343,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_DEFINE_PALETTE_IMMEDIATE: {
-			if (CheckCommandLength(p, end, sizeof(DefinePaletteImmediateCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(DefinePaletteImmediateCmd))) return false;
 			DefinePaletteImmediateCmd* cmd = (DefinePaletteImmediateCmd*)p;
 			uint64_t data_size;
 			switch (cmd->depth) {
@@ -381,7 +377,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_DEFINE_WINDOW: {
-			if (CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
 			DefineWindowCmd* cmd = (DefineWindowCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (r->screen_xcount > 640) {
@@ -417,7 +413,7 @@ bool VidHDSdhr::ProcessCommands() {
 
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SET_ALL: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetAllCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSetAllCmd))) return false;
 			UpdateWindowSetAllCmd* cmd = (UpdateWindowSetAllCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
@@ -451,7 +447,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SINGLE_TILESET: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowSingleTilesetCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSingleTilesetCmd))) return false;
 			UpdateWindowSingleTilesetCmd* cmd = (UpdateWindowSingleTilesetCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
@@ -484,7 +480,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SINGLE_PALETTE: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowSinglePaletteCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSinglePaletteCmd))) return false;
 			UpdateWindowSinglePaletteCmd* cmd = (UpdateWindowSinglePaletteCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
@@ -517,7 +513,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SINGLE_BOTH: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowSingleBothCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSingleBothCmd))) return false;
 			UpdateWindowSingleBothCmd* cmd = (UpdateWindowSingleBothCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
@@ -549,7 +545,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SHIFT_TILES: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowShiftTilesCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowShiftTilesCmd))) return false;
 			UpdateWindowShiftTilesCmd* cmd = (UpdateWindowShiftTilesCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (cmd->x_dir < -1 || cmd->x_dir > 1 || cmd->y_dir < -1 || cmd->y_dir > 1) {
@@ -604,14 +600,14 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SET_WINDOW_POSITION: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetWindowPositionCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSetWindowPositionCmd))) return false;
 			UpdateWindowSetWindowPositionCmd* cmd = (UpdateWindowSetWindowPositionCmd*)p;
 			Window* r = windows + cmd->window_index;
 			r->screen_xbegin = cmd->screen_xbegin;
 			r->screen_ybegin = cmd->screen_ybegin;
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_ADJUST_WINDOW_VIEW: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowAdjustWindowViewCommand))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowAdjustWindowViewCommand))) return false;
 			UpdateWindowAdjustWindowViewCommand* cmd = (UpdateWindowAdjustWindowViewCommand*)p;
 			Window* r = windows + cmd->window_index;
 			if ((uint64_t)cmd->tile_ybegin + r->tile_ycount * r->tile_ydim > r->screen_ycount ||
@@ -623,7 +619,7 @@ bool VidHDSdhr::ProcessCommands() {
 			r->tile_ybegin = cmd->tile_ybegin;
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SET_BITMASKS: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetBitmasksCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSetBitmasksCmd))) return false;
 			UpdateWindowSetBitmasksCmd* cmd = (UpdateWindowSetBitmasksCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (cmd->tile_xcount != r->tile_xcount ||
@@ -663,7 +659,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_ENABLE: {
-			if (CheckCommandLength(p, end, sizeof(UpdateWindowEnableCmd))) return false;
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowEnableCmd))) return false;
 			UpdateWindowEnableCmd* cmd = (UpdateWindowEnableCmd*)p;
 			Window* r = windows + cmd->window_index;
 			if (!r->tile_xcount || !r->tile_ycount) {

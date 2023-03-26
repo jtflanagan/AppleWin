@@ -246,7 +246,7 @@ void VidHDCard::SDHRWritePixels(uint16_t vert, uint16_t horz, bgra_t* pVideoAddr
 	if (!m_pVidHDSdhr) {
 		m_pVidHDSdhr = new VidHDSdhr();
 	}
-	m_pVidHDSdhr->ProcessCommands();
+	//m_pVidHDSdhr->ProcessCommands();
 	for (UINT i = 0; i < 16; ++i) {
 		pVideoAddress[i] = m_pVidHDSdhr->GetPixel(vert, horz);
 	}
