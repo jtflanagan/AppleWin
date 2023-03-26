@@ -3,21 +3,22 @@
 
 
 enum ShdrCmd_e {
-	SHDR_CMD_UPLOAD_DATA = 1,
-	SHDR_CMD_DEFINE_TILESET = 2,
-	SHDR_CMD_DEFINE_PALETTE = 3,
-	SHDR_CMD_DEFINE_PALETTE_IMMEDIATE = 4,
-	SHDR_CMD_DEFINE_WINDOW = 5,
-	SHDR_CMD_UPDATE_WINDOW_SET_ALL = 6,
-	SHDR_CMD_UPDATE_WINDOW_SINGLE_TILESET = 7,
-	SHDR_CMD_UPDATE_WINDOW_SINGLE_PALETTE = 8,
-	SHDR_CMD_UPDATE_WINDOW_SINGLE_BOTH = 9,
-	SHDR_CMD_UPDATE_WINDOW_SHIFT_TILES = 10,
-	SHDR_CMD_UPDATE_WINDOW_SET_WINDOW_POSITION = 11,
-	SHDR_CMD_UPDATE_WINDOW_ADJUST_WINDOW_VIEW = 12,
-	SHDR_CMD_UPDATE_WINDOW_SET_BITMASKS = 13,
-	SHDR_CMD_UPDATE_WINDOW_ENABLE = 14,
-	SHDR_CMD_READY = 15,
+	SDHR_CMD_UPLOAD_DATA = 1,
+	SDHR_CMD_DEFINE_TILESET = 2,
+	SDHR_CMD_DEFINE_TILESET_IMMEDIATE = 3,
+	SDHR_CMD_DEFINE_PALETTE = 4,
+	SDHR_CMD_DEFINE_PALETTE_IMMEDIATE = 5,
+	SDHR_CMD_DEFINE_WINDOW = 6,
+	SDHR_CMD_UPDATE_WINDOW_SET_ALL = 7,
+	SDHR_CMD_UPDATE_WINDOW_SINGLE_TILESET = 8,
+	SDHR_CMD_UPDATE_WINDOW_SINGLE_PALETTE = 9,
+	SDHR_CMD_UPDATE_WINDOW_SINGLE_BOTH = 10,
+	SDHR_CMD_UPDATE_WINDOW_SHIFT_TILES = 11,
+	SDHR_CMD_UPDATE_WINDOW_SET_WINDOW_POSITION = 12,
+	SDHR_CMD_UPDATE_WINDOW_ADJUST_WINDOW_VIEW = 13,
+	SDHR_CMD_UPDATE_WINDOW_SET_BITMASKS = 14,
+	SDHR_CMD_UPDATE_WINDOW_ENABLE = 15,
+	SDHR_CMD_READY = 16,
 };
 #pragma pack(push)
 #pragma pack(1)	
@@ -37,6 +38,15 @@ struct DefineTilesetCmd {
 	uint8_t data_low;
 	uint8_t data_med;
 	uint8_t data_high;
+};
+
+struct DefineTilesetImmediateCmd {
+	uint8_t tileset_index;
+	uint8_t depth;
+	uint8_t num_entries;
+	uint8_t xdim;
+	uint8_t ydim;
+	uint8_t data[];
 };
 
 struct DefinePaletteCmd {
@@ -167,6 +177,57 @@ bgra_t VidHDSdhr::GetPixel(uint16_t vert, uint16_t horz) {
 	return rgb;
 }
 
+void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_entries, uint8_t xdim, uint8_t ydim, 
+	                          uint64_t source_data_size,uint8_t* source_p) {
+	uint64_t store_data_size = (uint64_t)xdim * ydim * num_entries;
+	TilesetRecord* r = tileset_records + tileset_index;
+	if (r->tile_data) {
+		free(r->tile_data);
+	}
+	memset(r, 0, sizeof(TilesetRecord));
+	r->depth = depth;
+	r->xdim = xdim;
+	r->ydim = ydim;
+	r->num_entries = num_entries;
+	r->tile_data = (uint8_t*)malloc(store_data_size);
+	memset(r->tile_data, store_data_size, 0);
+
+	uint8_t* dest_p = r->tile_data;
+	// regardless of palette bit depth, we expand all pixels to individual bytes 
+	// for ease of rendering.  In the hardware, this lets the palette lookups
+	// get vectorized.  Here, we are doing it to ease the rendering implementation,
+	// being able to treat them all the same.
+	uint8_t mask;
+	uint8_t mask_shift;
+	uint8_t pixel_stride;
+	if (depth == 4) {
+		mask = 0xf0;
+		mask_shift = 4;
+		pixel_stride = 2;
+	}
+	else if (depth == 2) {
+		mask = 0xc0;
+		mask_shift = 6;
+		pixel_stride = 4;
+	}
+	else {
+		mask = 0x80;
+		mask_shift = 7;
+		pixel_stride = 8;
+	}
+	uint64_t line_offset = r->ydim * r->xdim + r->xdim;
+	for (uint64_t i = 0; i < source_data_size; ++i) {
+		uint8_t pixel_byte = source_p[i];
+		for (uint8_t j = 0; j < pixel_stride; ++j) {
+			uint8_t pixel = pixel_byte << (mask_shift * j);
+			pixel &= mask;
+			pixel >>= mask_shift;
+			*dest_p++ = pixel;
+		}
+	}
+}
+
+
 bool VidHDSdhr::ProcessCommands() {
 	if (error_flag) {
 		return false;
@@ -182,7 +243,7 @@ bool VidHDSdhr::ProcessCommands() {
 		p += 2;
 		BYTE cmd = *p++;
 		switch (cmd) {
-		case SHDR_CMD_UPLOAD_DATA: {
+		case SDHR_CMD_UPLOAD_DATA: {
 			if (CheckCommandLength(p, end, sizeof(UploadDataCmd))) return false;
 			UploadDataCmd* cmd = (UploadDataCmd*)p;
 			if (cmd->num_256b_pages > 256 - cmd->source_addr_med) {
@@ -196,7 +257,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 			memcpy(MemGetMainPtr((uint16_t)cmd->source_addr_med * 256), uploaded_data_region + dest_offset, data_size);
 		} break;
-		case SHDR_CMD_DEFINE_TILESET: {
+		case SDHR_CMD_DEFINE_TILESET: {
 			if (CheckCommandLength(p, end, sizeof(DefineTilesetCmd))) return false;
 			DefineTilesetCmd* cmd = (DefineTilesetCmd*)p;
 			switch (cmd->depth) {
@@ -213,60 +274,59 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 			uint64_t load_data_size;
-			uint64_t store_data_size;
 			load_data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries * cmd->depth / 8;
-			store_data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries;
-			TilesetRecord* r = tileset_records + cmd->tileset_index;
-			if (r->tile_data) {
-				free(r->tile_data);
-			}
-			memset(r, 0, sizeof(TilesetRecord));
-			r->depth = cmd->depth;
-			r->xdim = cmd->xdim;
-			r->ydim = cmd->ydim;
-			r->num_entries = cmd->num_entries;
-			r->tile_data = (uint8_t*)malloc(store_data_size);
-			memset(r->tile_data, store_data_size, 0);
 			uint64_t data_region_offset = DataOffset(cmd->data_low, cmd->data_med, cmd->data_high);
 			if (!DataSizeCheck(data_region_offset, load_data_size)) {
 				return false;
 			}
 			uint8_t* source_p = uploaded_data_region + data_region_offset;
-			uint8_t* dest_p = r->tile_data;
-			// regardless of palette bit depth, we expand all pixels to individual bytes 
-			// for ease of rendering.  In the hardware, this lets the palette lookups
-			// get vectorized.  Here, we are doing it to ease the rendering implementation,
-			// being able to treat them all the same.
-			uint8_t mask;
-			uint8_t mask_shift;
-			uint8_t pixel_stride;
-			if (cmd->depth == 4) {
-				mask = 0xf0;
-				mask_shift = 4;
-				pixel_stride = 2;
-			}
-			else if (cmd->depth == 2) {
-				mask = 0xc0;
-				mask_shift = 6;
-				pixel_stride = 4;
-			}
-			else {
-				mask = 0x80;
-				mask_shift = 7;
-				pixel_stride = 8;
-			}
-			uint64_t line_offset = r->ydim * r->xdim + r->xdim;
-			for (uint64_t i = 0; i < load_data_size; ++i) {
-				uint8_t pixel_byte = source_p[i];
-				for (uint8_t j = 0; j < pixel_stride; ++j) {
-					uint8_t pixel = pixel_byte << (mask_shift * j);
-					pixel &= mask;
-					pixel >>= mask_shift;
-					*dest_p++ = pixel;
-				}
-			}
+			DefineTileset(cmd->tileset_index, cmd->depth, cmd->num_entries, cmd->xdim, cmd->ydim, load_data_size, source_p);
 		} break;
-		case SHDR_CMD_DEFINE_PALETTE: {
+			//struct DefineTilesetCmd {
+//	uint8_t tileset_index;
+//	uint8_t depth;
+//	uint8_t num_entries;
+//	uint8_t xdim;
+//	uint8_t ydim;
+//	uint8_t data_low;
+//	uint8_t data_med;
+//	uint8_t data_high;
+//};
+		case SDHR_CMD_DEFINE_TILESET_IMMEDIATE: {
+			if (CheckCommandLength(p, end, sizeof(DefineTilesetImmediateCmd))) return false;
+			DefineTilesetImmediateCmd* cmd = (DefineTilesetImmediateCmd*)p;
+			switch (cmd->depth) {
+			case 1:
+			case 2:
+			case 4:
+				break;
+			default:
+				CommandError("invalid tileset depth");
+				return false;
+			}
+			if (cmd->xdim % 4 || cmd->ydim % 4) {
+				CommandError("tile dimensions must be multiple of 4");
+				return false;
+			}
+			uint64_t data_size;
+			switch (cmd->depth) {
+			case 1:
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 8; break;
+			case 2:
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 4; break;
+			case 4:
+				data_size = (uint64_t)cmd->xdim* cmd->ydim* cmd->num_entries / 4; break;
+			default:
+				CommandError("invalid tileset depth");
+				return false;
+			}
+			if (sizeof(DefineTilesetImmediateCmd) + data_size != message_length) {
+				CommandError("TilesetImmediate data size mismatch");
+				return false;
+			}
+			DefineTileset(cmd->tileset_index, cmd->depth, cmd->num_entries, cmd->xdim, cmd->ydim, data_size, cmd->data);
+		} break;
+		case SDHR_CMD_DEFINE_PALETTE: {
 			if (CheckCommandLength(p, end, sizeof(DefinePaletteCmd))) return false;
 			DefinePaletteCmd* cmd = (DefinePaletteCmd*)p;
 			uint64_t data_region_offset = DataOffset(cmd->data_low, cmd->data_med, cmd->data_high);
@@ -286,7 +346,7 @@ bool VidHDSdhr::ProcessCommands() {
 				r->blue[i] &= 0x0f;
 			}
 		} break;
-		case SHDR_CMD_DEFINE_PALETTE_IMMEDIATE: {
+		case SDHR_CMD_DEFINE_PALETTE_IMMEDIATE: {
 			if (CheckCommandLength(p, end, sizeof(DefinePaletteImmediateCmd))) return false;
 			DefinePaletteImmediateCmd* cmd = (DefinePaletteImmediateCmd*)p;
 			uint64_t data_size;
@@ -320,7 +380,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_DEFINE_WINDOW: {
+		case SDHR_CMD_DEFINE_WINDOW: {
 			if (CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
 			DefineWindowCmd* cmd = (DefineWindowCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -356,7 +416,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SET_ALL: {
+		case SDHR_CMD_UPDATE_WINDOW_SET_ALL: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetAllCmd))) return false;
 			UpdateWindowSetAllCmd* cmd = (UpdateWindowSetAllCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -390,7 +450,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SINGLE_TILESET: {
+		case SDHR_CMD_UPDATE_WINDOW_SINGLE_TILESET: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowSingleTilesetCmd))) return false;
 			UpdateWindowSingleTilesetCmd* cmd = (UpdateWindowSingleTilesetCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -423,7 +483,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SINGLE_PALETTE: {
+		case SDHR_CMD_UPDATE_WINDOW_SINGLE_PALETTE: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowSinglePaletteCmd))) return false;
 			UpdateWindowSinglePaletteCmd* cmd = (UpdateWindowSinglePaletteCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -456,7 +516,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SINGLE_BOTH: {
+		case SDHR_CMD_UPDATE_WINDOW_SINGLE_BOTH: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowSingleBothCmd))) return false;
 			UpdateWindowSingleBothCmd* cmd = (UpdateWindowSingleBothCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -488,7 +548,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SHIFT_TILES: {
+		case SDHR_CMD_UPDATE_WINDOW_SHIFT_TILES: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowShiftTilesCmd))) return false;
 			UpdateWindowShiftTilesCmd* cmd = (UpdateWindowShiftTilesCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -543,14 +603,14 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SET_WINDOW_POSITION: {
+		case SDHR_CMD_UPDATE_WINDOW_SET_WINDOW_POSITION: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetWindowPositionCmd))) return false;
 			UpdateWindowSetWindowPositionCmd* cmd = (UpdateWindowSetWindowPositionCmd*)p;
 			Window* r = windows + cmd->window_index;
 			r->screen_xbegin = cmd->screen_xbegin;
 			r->screen_ybegin = cmd->screen_ybegin;
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_ADJUST_WINDOW_VIEW: {
+		case SDHR_CMD_UPDATE_WINDOW_ADJUST_WINDOW_VIEW: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowAdjustWindowViewCommand))) return false;
 			UpdateWindowAdjustWindowViewCommand* cmd = (UpdateWindowAdjustWindowViewCommand*)p;
 			Window* r = windows + cmd->window_index;
@@ -562,7 +622,7 @@ bool VidHDSdhr::ProcessCommands() {
 			r->tile_xbegin = cmd->tile_xbegin;
 			r->tile_ybegin = cmd->tile_ybegin;
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_SET_BITMASKS: {
+		case SDHR_CMD_UPDATE_WINDOW_SET_BITMASKS: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowSetBitmasksCmd))) return false;
 			UpdateWindowSetBitmasksCmd* cmd = (UpdateWindowSetBitmasksCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -602,7 +662,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		} break;
-		case SHDR_CMD_UPDATE_WINDOW_ENABLE: {
+		case SDHR_CMD_UPDATE_WINDOW_ENABLE: {
 			if (CheckCommandLength(p, end, sizeof(UpdateWindowEnableCmd))) return false;
 			UpdateWindowEnableCmd* cmd = (UpdateWindowEnableCmd*)p;
 			Window* r = windows + cmd->window_index;
@@ -612,7 +672,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 			r->enabled = cmd->enabled;
 		} break;
-		case SHDR_CMD_READY: {
+		case SDHR_CMD_READY: {
 			// rubber meets the road, draw the windows to the screen
 			for (uint16_t window_index = 0; window_index < 256; ++window_index) {
 				Window* w = windows + window_index;

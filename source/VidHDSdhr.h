@@ -64,6 +64,9 @@ public:
 		return true;
 	}
 private:
+	void DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_entries, uint8_t xdim, uint8_t ydim, 
+		               uint64_t source_data_size, uint8_t* source_p);
+
 	bool m_bEnabled;
 	struct TilesetRecord {
 		uint8_t depth;
@@ -109,5 +112,6 @@ private:
 	uint8_t screen_red[screen_xcount * screen_ycount];
 	uint8_t screen_green[screen_xcount * screen_ycount];
 	uint8_t screen_blue[screen_xcount * screen_ycount];
+
 };
 
