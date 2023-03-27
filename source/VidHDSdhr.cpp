@@ -170,9 +170,10 @@ bool VidHDSdhr::CheckCommandLength(BYTE* p, BYTE* e, size_t sz) {
 bgra_t VidHDSdhr::GetPixel(uint16_t vert, uint16_t horz) {
 	uint64_t pixel_offset = (uint64_t)vert * screen_xcount + horz;
 	bgra_t rgb = { 0 };
-	rgb.r = screen_red[pixel_offset] * 16;
-	rgb.g = screen_green[pixel_offset] * 16;
-	rgb.b = screen_blue[pixel_offset] * 16;
+	uint16_t pixel_color = screen_color[pixel_offset];
+	rgb.r = ((pixel_color >> 10) & 0x1f) << 3;
+	rgb.g = ((pixel_color >> 5) & 0x1f) << 3;
+	rgb.b = (pixel_color & 0x1f) << 3;
 	rgb.a = ALPHA;
 	return rgb;
 }
@@ -190,7 +191,6 @@ void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_
 	r->ydim = ydim;
 	r->num_entries = num_entries;
 	r->tile_data = (uint8_t*)malloc(store_data_size);
-	memset(r->tile_data, store_data_size, 0);
 
 	uint8_t* dest_p = r->tile_data;
 	// regardless of palette bit depth, we expand all pixels to individual bytes 
@@ -257,7 +257,7 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 			uint64_t dest_offset = DataOffset(0, cmd->dest_addr_med, cmd->dest_addr_high);
-			uint64_t data_size = (uint64_t) 256 * cmd->num_256b_pages;
+			uint64_t data_size = (uint64_t)256 * cmd->num_256b_pages;
 			if (!DataSizeCheck(dest_offset, data_size)) {
 				return false;
 			}
@@ -311,7 +311,7 @@ bool VidHDSdhr::ProcessCommands() {
 			case 2:
 				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 4; break;
 			case 4:
-				data_size = (uint64_t)cmd->xdim* cmd->ydim* cmd->num_entries / 4; break;
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 4; break;
 			default:
 				CommandError("invalid tileset depth");
 				return false;
@@ -326,21 +326,14 @@ bool VidHDSdhr::ProcessCommands() {
 			if (!CheckCommandLength(p, end, sizeof(DefinePaletteCmd))) return false;
 			DefinePaletteCmd* cmd = (DefinePaletteCmd*)p;
 			uint64_t data_region_offset = DataOffset(cmd->data_low, cmd->data_med, cmd->data_high);
-			uint64_t data_size = 48;  //16 entries * 3 bytes RGB
+			uint64_t data_size = 32;  //16 entries * 2 bytes RGB
 			if (!DataSizeCheck(data_region_offset, data_size)) {
 				return false;
 			}
 			PaletteRecord* r = palette_records + cmd->palette_index;
 			uint8_t* source_p = uploaded_data_region + data_region_offset;
-			memcpy(r->red, source_p, 16);
-			memcpy(r->green, source_p + 16, 16);
-			memcpy(r->blue, source_p + 32, 16);
-			// entries only get 4 bits of color resolution
-			for (uint64_t i = 0; i < 16; ++i) {
-				r->red[i] &= 0x0f;
-				r->green[i] &= 0x0f;
-				r->blue[i] &= 0x0f;
-			}
+			memset(r->color, 0, sizeof(r->color));
+			memcpy(r->color, source_p, data_size);
 		} break;
 		case SDHR_CMD_DEFINE_PALETTE_IMMEDIATE: {
 			if (!CheckCommandLength(p, end, sizeof(DefinePaletteImmediateCmd))) return false;
@@ -348,11 +341,11 @@ bool VidHDSdhr::ProcessCommands() {
 			uint64_t data_size;
 			switch (cmd->depth) {
 			case 1:
-				data_size = 6; break;
+				data_size = 4; break;
 			case 2:
-				data_size = 12; break;
+				data_size = 8; break;
 			case 4:
-				data_size = 48; break;
+				data_size = 32; break;
 			default:
 				CommandError("invalid tileset depth");
 				return false;
@@ -362,19 +355,8 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 			PaletteRecord* r = palette_records + cmd->palette_index;
-			for (uint64_t i = 0; i < 16; ++i) {
-				if (i * 3 > data_size) {
-					r->red[i] = 0;
-					r->green[i] = 0;
-					r->blue[i] = 0;
-				}
-				else {
-					// entries only get 4 bits of color resolution
-					r->red[i] = cmd->data[i * 3] & 0x0f;
-					r->green[i] = cmd->data[i * 3 + 1] & 0x0f;
-					r->blue[i] = cmd->data[i * 3 + 2] & 0x0f;
-				}
-			}
+			memset(r->color, 0, sizeof(r->color));
+			memcpy(r->color, cmd->data, data_size);
 		} break;
 		case SDHR_CMD_DEFINE_WINDOW: {
 			if (!CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
@@ -402,6 +384,19 @@ bool VidHDSdhr::ProcessCommands() {
 			r->tile_xdim = cmd->tile_xdim;
 			r->tile_ydim = cmd->tile_ydim;
 			r->tile_xcount = cmd->tile_xcount;
+			r->tile_ycount = cmd->tile_ycount;
+			if (r->tilesets) {
+				free(r->tilesets);
+			}
+			r->tilesets = (uint8_t*)malloc(r->tile_xcount * r->tile_ycount);
+			if (r->tile_indexes) {
+				free(r->tile_indexes);
+			}
+			r->tile_indexes = (uint8_t*)malloc(r->tile_xcount * r->tile_ycount);
+			if (r->tile_palettes) {
+				free(r->tile_palettes);
+			}
+			r->tile_palettes = (uint8_t*)malloc(r->tile_xcount * r->tile_ycount);
 			if (r->bitmask_tilesets) {
 				free(r->bitmask_tilesets);
 				r->bitmask_tilesets = NULL;
@@ -410,7 +405,6 @@ bool VidHDSdhr::ProcessCommands() {
 				free(r->bitmask_tile_indexes);
 				r->bitmask_tilesets = NULL;
 			}
-
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SET_ALL: {
 			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSetAllCmd))) return false;
@@ -696,16 +690,12 @@ bool VidHDSdhr::ProcessCommands() {
 						PaletteRecord* pr = palette_records + w->tile_palettes[tile_yindex * w->tile_xcount + tile_xindex];
 						uint8_t tile_index = w->tile_indexes[tile_yindex * w->tile_xcount + tile_xindex];
 						uint8_t palette_value = t->tile_data[tile_yoffset * t->xdim + tile_xoffset];
-						uint8_t red_val = pr->red[palette_value];
-						uint8_t green_val = pr->green[palette_value];
-						uint8_t blue_val = pr->blue[palette_value];
+						uint16_t pixel_color = pr->color[palette_value];
 						// now, where on the screen to put it?
 						int64_t screen_y = tile_y + w->screen_ybegin - w->tile_ybegin;
 						int64_t screen_x = tile_x + w->screen_xbegin - w->tile_xbegin;
 						int64_t screen_offset = screen_y * screen_xcount + screen_x;
-						screen_red[screen_offset] = red_val;
-						screen_green[screen_offset] = green_val;
-						screen_blue[screen_offset] = blue_val;
+						screen_color[screen_offset] = pixel_color;
 					}
 				}
 			}
@@ -715,6 +705,7 @@ bool VidHDSdhr::ProcessCommands() {
 			CommandError("unrecognized command");
 			return false;
 		}
+		p += message_length;
 	}
 	return true;
 }

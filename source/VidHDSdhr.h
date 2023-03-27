@@ -76,9 +76,7 @@ private:
 		uint8_t* tile_data = NULL;
 	};
 	struct PaletteRecord {
-		uint8_t red[16];
-		uint8_t blue[16];
-		uint8_t green[16];
+		uint16_t color[16];
 	};
 
 	struct Window {
@@ -109,9 +107,6 @@ private:
 	TilesetRecord tileset_records[256];
 	PaletteRecord palette_records[256];
 	Window windows[256];
-	uint8_t screen_red[screen_xcount * screen_ycount];
-	uint8_t screen_green[screen_xcount * screen_ycount];
-	uint8_t screen_blue[screen_xcount * screen_ycount];
-
+	uint16_t screen_color[screen_xcount * screen_ycount];
 };
 

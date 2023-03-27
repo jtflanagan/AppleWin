@@ -235,7 +235,7 @@ static void destroy_shared_memory()
 static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 {
 	// Ignore NULL commands.
-	if (payload <= 1 || payload > 128)
+	if (payload <= 1)
 		return;
 
 	// payload is the length of the command string
@@ -253,11 +253,11 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 		com += strlen(":sdhr_");
 		if (strstr(com, "write") == com)
 		{
-			// sdhr_write command starts with ":sdhr_write" and follows with a single byte to write
-			char writeByte = 0;		// byte to write, defaults to 0 if no byte sent after ":sdhr_write"
-			if (payload >= strlen(":sdhr_write") + sizeof(char))
-				writeByte = com[strlen("write")];
-			IOWrite[0xB](0, g_cxSDHR_data, 1, (BYTE)writeByte, 0);
+			// sdhr_write command starts with ":sdhr_write" and follows with a number of bytes to write
+			for (auto i = strlen(":sdhr_write"); i < payload; ++i) {
+				BYTE writeByte = cmd->data[i];
+				IOWrite[0xB](0, g_cxSDHR_data, 1, (BYTE)writeByte, 0);
+			}
 		}
 		else if (strcmp(com, "process") == 0)
 		{
