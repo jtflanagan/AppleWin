@@ -215,11 +215,10 @@ void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_
 		mask_shift = 7;
 		pixel_stride = 8;
 	}
-	uint64_t line_offset = r->ydim * r->xdim + r->xdim;
 	for (uint64_t i = 0; i < source_data_size; ++i) {
 		uint8_t pixel_byte = source_p[i];
 		for (uint8_t j = 0; j < pixel_stride; ++j) {
-			uint8_t pixel = pixel_byte << (mask_shift * j);
+			uint8_t pixel = pixel_byte << (mask_shift - j);
 			pixel &= mask;
 			pixel >>= mask_shift;
 			*dest_p++ = pixel;
@@ -311,7 +310,7 @@ bool VidHDSdhr::ProcessCommands() {
 			case 2:
 				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 4; break;
 			case 4:
-				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 4; break;
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 2; break;
 			default:
 				CommandError("invalid tileset depth");
 				return false;
@@ -686,9 +685,9 @@ bool VidHDSdhr::ProcessCommands() {
 							uint8_t palette_value = bt->tile_data[tile_yoffset * bt->xdim + tile_yoffset];
 							if (!palette_value) continue;  // 0 palette value on bitmask means "don't draw"
 						}
-						TilesetRecord* t = tileset_records + w->tilesets[tile_yindex * w->tile_xcount + tile_xindex];
-						PaletteRecord* pr = palette_records + w->tile_palettes[tile_yindex * w->tile_xcount + tile_xindex];
-						uint8_t tile_index = w->tile_indexes[tile_yindex * w->tile_xcount + tile_xindex];
+						TilesetRecord* t = tileset_records + w->tilesets[entry_index];
+						PaletteRecord* pr = palette_records + w->tile_palettes[entry_index];
+						uint8_t tile_index = w->tile_indexes[entry_index];
 						uint8_t palette_value = t->tile_data[tile_yoffset * t->xdim + tile_xoffset];
 						uint16_t pixel_color = pr->color[palette_value];
 						// now, where on the screen to put it?

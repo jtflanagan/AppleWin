@@ -749,6 +749,24 @@ inline void updateVideoScannerHorzEOL_SHR()
 	}
 }
 
+inline void updateVideoScannerHorzEOL_SDHR()
+{
+	if (VIDEO_SCANNER_MAX_HORZ == ++g_nVideoClockHorz)
+	{
+		g_nVideoClockHorz = 0;
+
+		if (++g_nVideoClockVert == g_videoScannerMaxVert)
+		{
+			g_nVideoClockVert = 0;
+		}
+
+		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR)
+		{
+			updateVideoScannerAddress();
+		}
+	}
+}
+
 //===========================================================================
 inline void updateVideoScannerAddress()
 {
@@ -1856,6 +1874,7 @@ void updateScreenText80RGB(long cycles6502)
 	}
 }
 
+
 //===========================================================================
 void updateScreenSDHR(long cycles6502)
 {
@@ -1864,14 +1883,14 @@ void updateScreenSDHR(long cycles6502)
 	{
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR) {
 			if (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_START) {
-
+				//LogFileOutput("screen %d %d %d\n", g_nVideoClockVert, g_nVideoClockHorz, g_pVideoAddress);
 				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress);
 				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert + 1, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress2);
 				g_pVideoAddress += 16;
 				g_pVideoAddress2 += 16;
 			}
 		}
-		updateVideoScannerHorzEOL_SHR();
+		updateVideoScannerHorzEOL_SDHR();
 	}
 	return;
 }
