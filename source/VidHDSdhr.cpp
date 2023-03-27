@@ -67,7 +67,7 @@ struct DefineWindowCmd {
 	uint16_t screen_xcount;
 	uint16_t screen_ycount;
 	int16_t screen_xbegin;
-	int16_t screen_xend;
+	int16_t screen_ybegin;
 	uint16_t tile_xbegin;
 	uint16_t tile_ybegin;
 	uint16_t tile_xdim;
@@ -377,7 +377,7 @@ bool VidHDSdhr::ProcessCommands() {
 			r->screen_xcount = cmd->screen_xcount;
 			r->screen_ycount = cmd->screen_ycount;
 			r->screen_xbegin = cmd->screen_xbegin;
-			r->screen_xbegin = cmd->screen_xend;
+			r->screen_ybegin = cmd->screen_ybegin;
 			r->tile_xbegin = cmd->tile_xbegin;
 			r->tile_ybegin = cmd->tile_ybegin;
 			r->tile_xdim = cmd->tile_xdim;
@@ -675,7 +675,7 @@ bool VidHDSdhr::ProcessCommands() {
 					uint64_t tile_yoffset = tile_y % w->tile_ydim;
 					for (int64_t tile_x = 0; tile_x < w->tile_xdim * w->tile_xcount; ++tile_x) {
 						if (tile_x < w->tile_xbegin) continue; // column not visible in window
-						if (tile_x > w->tile_xbegin + w->screen_ycount) continue; // column not visible in window
+						if (tile_x > w->tile_xbegin + w->screen_xcount) continue; // column not visible in window
 						uint64_t tile_xindex = tile_x / w->tile_xdim;
 						uint64_t tile_xoffset = tile_x % w->tile_xdim;
 						uint64_t entry_index = tile_yindex * w->tile_xcount + tile_xindex;

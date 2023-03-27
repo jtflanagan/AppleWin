@@ -1884,8 +1884,8 @@ void updateScreenSDHR(long cycles6502)
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR) {
 			if (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_START) {
 				//LogFileOutput("screen %d %d %d\n", g_nVideoClockVert, g_nVideoClockHorz, g_pVideoAddress);
-				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress);
-				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert + 1, g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START, g_pVideoAddress2);
+				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert, 16*(g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START), g_pVideoAddress);
+				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert + 1, 16*(g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START), g_pVideoAddress2);
 				g_pVideoAddress += 16;
 				g_pVideoAddress2 += 16;
 			}
