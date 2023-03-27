@@ -698,6 +698,7 @@ bool VidHDSdhr::ProcessCommands() {
 					}
 				}
 			}
+			command_buffer.clear();
 			return true;
 		} break;
 		default:
@@ -706,5 +707,6 @@ bool VidHDSdhr::ProcessCommands() {
 		}
 		p += message_length;
 	}
-	return true;
+	CommandError("reached end of command buffer without READY");
+	return false;
 }
