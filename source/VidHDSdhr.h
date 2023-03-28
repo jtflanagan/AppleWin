@@ -64,7 +64,7 @@ public:
 		return true;
 	}
 private:
-	void DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_entries, uint8_t xdim, uint8_t ydim, 
+	void DefineTileset(uint8_t tileset_index, uint8_t depth, uint16_t num_entries, uint8_t xdim, uint8_t ydim, 
 		               uint64_t source_data_size, uint8_t* source_p);
 
 	bool m_bEnabled;

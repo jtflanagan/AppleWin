@@ -178,7 +178,7 @@ bgra_t VidHDSdhr::GetPixel(uint16_t vert, uint16_t horz) {
 	return rgb;
 }
 
-void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_entries, uint8_t xdim, uint8_t ydim, 
+void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint8_t depth, uint16_t num_entries, uint8_t xdim, uint8_t ydim, 
 	                          uint64_t source_data_size,uint8_t* source_p) {
 	uint64_t store_data_size = (uint64_t)xdim * ydim * num_entries;
 	TilesetRecord* r = tileset_records + tileset_index;
@@ -201,26 +201,24 @@ void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint8_t depth, uint8_t num_
 	uint8_t mask_shift;
 	uint8_t pixel_stride;
 	if (depth == 4) {
-		mask = 0xf0;
+		mask = 0x0f;
 		mask_shift = 4;
 		pixel_stride = 2;
 	}
 	else if (depth == 2) {
-		mask = 0xc0;
-		mask_shift = 6;
+		mask = 0x03;
+		mask_shift = 2;
 		pixel_stride = 4;
 	}
 	else {
-		mask = 0x80;
-		mask_shift = 7;
+		mask = 0x01;
+		mask_shift = 1;
 		pixel_stride = 8;
 	}
 	for (uint64_t i = 0; i < source_data_size; ++i) {
 		uint8_t pixel_byte = source_p[i];
-		for (uint8_t j = 0; j < pixel_stride; ++j) {
-			uint8_t pixel = pixel_byte << (mask_shift - j);
-			pixel &= mask;
-			pixel >>= mask_shift;
+		for (int8_t j = pixel_stride - 1; j >= 0; --j) {
+			uint8_t pixel = (pixel_byte >> (mask_shift * j)) & mask;
 			*dest_p++ = pixel;
 		}
 	}
@@ -278,14 +276,18 @@ bool VidHDSdhr::ProcessCommands() {
 				CommandError("tile dimensions must be multiple of 4");
 				return false;
 			}
+			uint16_t num_entries = cmd->num_entries;
+			if (num_entries == 0) {
+				num_entries = 256;
+			}
 			uint64_t load_data_size;
-			load_data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries * cmd->depth / 8;
+			load_data_size = (uint64_t)cmd->xdim * cmd->ydim * num_entries * cmd->depth / 8;
 			uint64_t data_region_offset = DataOffset(cmd->data_low, cmd->data_med, cmd->data_high);
 			if (!DataSizeCheck(data_region_offset, load_data_size)) {
 				return false;
 			}
 			uint8_t* source_p = uploaded_data_region + data_region_offset;
-			DefineTileset(cmd->tileset_index, cmd->depth, cmd->num_entries, cmd->xdim, cmd->ydim, load_data_size, source_p);
+			DefineTileset(cmd->tileset_index, cmd->depth, num_entries, cmd->xdim, cmd->ydim, load_data_size, source_p);
 		} break;
 		case SDHR_CMD_DEFINE_TILESET_IMMEDIATE: {
 			if (!CheckCommandLength(p, end, sizeof(DefineTilesetImmediateCmd))) return false;
@@ -303,14 +305,18 @@ bool VidHDSdhr::ProcessCommands() {
 				CommandError("tile dimensions must be multiple of 4");
 				return false;
 			}
+			uint16_t num_entries = cmd->num_entries;
+			if (!num_entries) {
+				num_entries = 256;
+			}
 			uint64_t data_size;
 			switch (cmd->depth) {
 			case 1:
-				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 8; break;
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * num_entries / 8; break;
 			case 2:
-				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 4; break;
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * num_entries / 4; break;
 			case 4:
-				data_size = (uint64_t)cmd->xdim * cmd->ydim * cmd->num_entries / 2; break;
+				data_size = (uint64_t)cmd->xdim * cmd->ydim * num_entries / 2; break;
 			default:
 				CommandError("invalid tileset depth");
 				return false;
@@ -319,7 +325,7 @@ bool VidHDSdhr::ProcessCommands() {
 				CommandError("TilesetImmediate data size mismatch");
 				return false;
 			}
-			DefineTileset(cmd->tileset_index, cmd->depth, cmd->num_entries, cmd->xdim, cmd->ydim, data_size, cmd->data);
+			DefineTileset(cmd->tileset_index, cmd->depth, num_entries, cmd->xdim, cmd->ydim, data_size, cmd->data);
 		} break;
 		case SDHR_CMD_DEFINE_PALETTE: {
 			if (!CheckCommandLength(p, end, sizeof(DefinePaletteCmd))) return false;
