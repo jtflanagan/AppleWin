@@ -361,11 +361,11 @@ bool VidHDSdhr::ProcessCommands() {
 			if (!CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
 			DefineWindowCmd* cmd = (DefineWindowCmd*)p;
 			Window* r = windows + cmd->window_index;
-			if (r->screen_xcount > 640) {
+			if (r->screen_xcount > screen_xcount) {
 				CommandError("Window exceeds max x resolution");
 				return false;
 			}
-			if (r->screen_ycount > 360) {
+			if (r->screen_ycount > screen_ycount) {
 				CommandError("Window exceeds max y resolution");
 				return false;
 			}
@@ -688,11 +688,15 @@ bool VidHDSdhr::ProcessCommands() {
 						TilesetRecord* t = tileset_records + w->tilesets[entry_index];
 						PaletteRecord* pr = palette_records + w->tile_palettes[entry_index];
 						uint8_t tile_index = w->tile_indexes[entry_index];
-						uint8_t palette_value = t->tile_data[tile_yoffset * t->xdim + tile_xoffset];
+						uint8_t palette_value = t->tile_data[tile_index * t->xdim * t->ydim + tile_yoffset * t->xdim + tile_xoffset];
 						uint16_t pixel_color = pr->color[palette_value];
 						// now, where on the screen to put it?
 						int64_t screen_y = tile_y + w->screen_ybegin - w->tile_ybegin;
 						int64_t screen_x = tile_x + w->screen_xbegin - w->tile_xbegin;
+						if (screen_x < 0 || screen_y < 0 || screen_x > screen_xcount || screen_y > screen_ycount) {
+							// destination pixel offscreen, do not draw
+							continue;
+						}
 						int64_t screen_offset = screen_y * screen_xcount + screen_x;
 						screen_color[screen_offset] = pixel_color;
 					}
