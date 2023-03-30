@@ -113,6 +113,7 @@
     <ClInclude Include="source\Speech.h" />
     <ClInclude Include="source\SSI263.h" />
     <ClInclude Include="source\SSI263Phonemes.h" />
+    <ClInclude Include="source\stb_image.h" />
     <ClInclude Include="source\StdAfx.h" />
     <ClInclude Include="source\StrFormat.h" />
     <ClInclude Include="source\SynchronousEventManager.h" />

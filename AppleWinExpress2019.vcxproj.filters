@@ -636,6 +636,9 @@
     <ClInclude Include="source\VidHDSdhr.h">
       <Filter>Source Files\Video</Filter>
     </ClInclude>
+    <ClInclude Include="source\stb_image.h">
+      <Filter>Source Files\Video</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="resource\Applewin.bmp">
