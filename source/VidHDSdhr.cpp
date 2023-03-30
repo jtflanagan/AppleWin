@@ -40,7 +40,7 @@ struct DefineImageAssetCmd {
 struct DefineImageAssetFilenameCmd {
 	uint8_t asset_index;
 	uint8_t filename_length;
-	uint8_t filename[];
+	uint8_t filename[];  // don't include the trailing null either in the data or counted in the filename_length
 };
 
 struct DefineTilesetCmd {
@@ -59,7 +59,7 @@ struct DefineTilesetImmediateCmd {
 	uint8_t xdim;
 	uint8_t ydim;
 	uint8_t asset_index;
-	uint8_t data[];
+	uint8_t data[];  // data is 4-byte records, 16-bit x and y offsets (scaled by x/ydim), from the given asset
 };
 
 struct DefineWindowCmd {
@@ -82,7 +82,7 @@ struct UpdateWindowSetBothCmd {
 	uint16_t tile_ybegin;
 	uint16_t tile_xcount;
 	uint16_t tile_ycount;
-	uint8_t data[];
+	uint8_t data[];  // data is 2-byte records per tile, tileset and index
 };
 
 struct UpdateWindowSingleTilesetCmd {
@@ -92,7 +92,7 @@ struct UpdateWindowSingleTilesetCmd {
 	uint16_t tile_xcount;
 	uint16_t tile_ycount;
 	uint8_t tileset_index;
-	uint8_t data[];
+	uint8_t data[];  // data is 1-byte record per tile, index on the given tileset
 };
 
 struct UpdateWindowShiftTilesCmd {
