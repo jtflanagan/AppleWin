@@ -139,6 +139,8 @@ void VidHDCard::ControlSDHR(BYTE value) {
 		if (m_pVidHDSdhr) {
 			m_pVidHDSdhr->ToggleSDHR(false);
 			GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
+			delete m_pVidHDSdhr;
+			m_pVidHDSdhr = NULL;
 		}
 	} break;
 	case 1: {
