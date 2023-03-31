@@ -246,7 +246,7 @@ void VidHDSdhr::DefineTileset(uint8_t tileset_index, uint16_t num_entries, uint8
 		uint64_t asset_xoffset = xoffset * xdim;
 		uint64_t asset_yoffset = yoffset * xdim;
 		asset->ExtractTile(this, dest_p, xdim, ydim, asset_xoffset, asset_yoffset);
-		dest_p += xdim * ydim * 2;
+		dest_p += (uint64_t)xdim * ydim;
 	}
 }
 
@@ -347,7 +347,7 @@ bool VidHDSdhr::ProcessCommands() {
 				num_entries = 256;
 			}
 			uint64_t load_data_size;
-			load_data_size = (uint64_t)cmd->xdim * cmd->ydim * num_entries * 4;
+			load_data_size = (uint64_t)num_entries * 4;
 			if (message_length != sizeof(DefineTilesetImmediateCmd) + load_data_size) {
 				CommandError("DefineTilesetImmediate data size mismatch");
 				return false;
@@ -401,7 +401,7 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 			// full tile specification: tileset, index, and palette
-			uint64_t data_size = (uint64_t)cmd->tile_xcount * cmd->tile_ycount * 3;
+			uint64_t data_size = (uint64_t)cmd->tile_xcount * cmd->tile_ycount * 2;
 			if (data_size + sizeof(UpdateWindowSetBothCmd) != message_length) {
 				CommandError("UpdateWindowSetBoth data size mismatch");
 				return false;
@@ -433,7 +433,7 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 			// partial tile specification: index and palette, single tileset
-			uint64_t data_size = (uint64_t)cmd->tile_xcount * cmd->tile_ycount * 2;
+			uint64_t data_size = (uint64_t)cmd->tile_xcount * cmd->tile_ycount;
 			if (data_size + sizeof(UpdateWindowSingleTilesetCmd) != message_length) {
 				CommandError("UpdateWindowSingleTileset data size mismatch");
 				return false;
