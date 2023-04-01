@@ -75,17 +75,17 @@ struct DefineTilesetImmediateCmd {
 
 struct DefineWindowCmd {
 	int8_t window_index;
-	bool black_or_wrap;
-	uint16_t screen_xcount;
-	uint16_t screen_ycount;
-	int16_t screen_xbegin;
-	int16_t screen_ybegin;
-	int32_t tile_xbegin;
-	int32_t tile_ybegin;
-	uint16_t tile_xdim;
-	uint16_t tile_ydim;
-	uint32_t tile_xcount;
-	uint32_t tile_ycount;
+	bool black_or_wrap;			// false: viewport is black outside of tile range, true: viewport wraps
+	uint64_t screen_xcount;		// width in pixels of visible screen area of window
+	uint64_t screen_ycount;
+	int64_t screen_xbegin;		// pixel xy coordinate where window begins
+	int64_t screen_ybegin;
+	int64_t tile_xbegin;		// pixel xy coordinate on backing tile array where aperture begins
+	int64_t tile_ybegin;
+	uint64_t tile_xdim;			// xy dimension, in pixels, of tiles in the window.
+	uint64_t tile_ydim;
+	uint64_t tile_xcount;		// xy dimension, in tiles, of the tile array
+	uint64_t tile_ycount;
 };
 
 struct UpdateWindowSetBothCmd {
