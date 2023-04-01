@@ -239,7 +239,6 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 		return;
 
 	// payload is the length of the command string
-	cmd->payload = 0;
 	char* com = (char*)(cmd->data);
 	com[payload] = 0;
 
@@ -310,6 +309,8 @@ static void proc_mech(GameLink::sSharedMMapBuffer_R1* cmd, UINT16 payload)
 	{
 		PostMessageW(GetFrame().g_hFrameWindow, WM_DESTROY, 0, 0);
 	}
+	// signal that the command has been processed by setting payload to 0
+	cmd->payload = 0;
 }
 
 //==============================================================================
