@@ -90,29 +90,29 @@ struct DefineWindowCmd {
 
 struct UpdateWindowSetBothCmd {
 	int8_t window_index;
-	uint16_t tile_xbegin;
-	uint16_t tile_ybegin;
-	uint16_t tile_xcount;
-	uint16_t tile_ycount;
+	int64_t tile_xbegin;
+	int64_t tile_ybegin;
+	uint64_t tile_xcount;
+	uint64_t tile_ycount;
 	uint8_t data[];  // data is 2-byte records per tile, tileset and index
 };
 
 struct UpdateWindowSetUploadCmd {
 	int8_t window_index;
-	uint16_t tile_xbegin;
-	uint16_t tile_ybegin;
-	uint16_t tile_xcount;
-	uint16_t tile_ycount;
+	int64_t tile_xbegin;
+	int64_t tile_ybegin;
+	uint64_t tile_xcount;
+	uint64_t tile_ycount;
 	uint8_t upload_addr_med;
 	uint8_t upload_addr_high;
 };
 
 struct UpdateWindowSingleTilesetCmd {
 	int8_t window_index;
-	uint16_t tile_xbegin;
-	uint16_t tile_ybegin;
-	uint16_t tile_xcount;
-	uint16_t tile_ycount;
+	int64_t tile_xbegin;
+	int64_t tile_ybegin;
+	uint64_t tile_xcount;
+	uint64_t tile_ycount;
 	uint8_t tileset_index;
 	uint8_t data[];  // data is 1-byte record per tile, index on the given tileset
 };
@@ -125,14 +125,14 @@ struct UpdateWindowShiftTilesCmd {
 
 struct UpdateWindowSetWindowPositionCmd {
 	int8_t window_index;
-	int16_t screen_xbegin;
-	int16_t screen_ybegin;
+	int64_t screen_xbegin;
+	int64_t screen_ybegin;
 };
 
 struct UpdateWindowAdjustWindowViewCommand {
 	int8_t window_index;
-	uint32_t tile_xbegin;
-	uint32_t tile_ybegin;
+	int64_t tile_xbegin;
+	int64_t tile_ybegin;
 };
 
 struct UpdateWindowEnableCmd {
