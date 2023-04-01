@@ -3,6 +3,8 @@
 #define STB_IMAGE_IMPLEMENTATION    
 #include "stb_image.h"
 
+#include <fstream>
+
 
 enum ShdrCmd_e {
 	SDHR_CMD_UPLOAD_DATA = 1,
@@ -19,6 +21,8 @@ enum ShdrCmd_e {
 	SDHR_CMD_UPDATE_WINDOW_SET_BITMASKS = 12,
 	SDHR_CMD_UPDATE_WINDOW_ENABLE = 13,
 	SDHR_CMD_READY = 14,
+	SDHR_CMD_UPLOAD_DATA_FILENAME = 15,
+	SDHR_CMD_UPDATE_WINDOW_SET_UPLOAD = 16,
 };
 #pragma pack(push)
 #pragma pack(1)
@@ -28,6 +32,13 @@ struct UploadDataCmd {
 	uint8_t dest_addr_high;
 	uint8_t source_addr_med;
 	uint8_t num_256b_pages;
+};
+
+struct UploadDataFilenameCmd {
+	uint8_t dest_addr_med;
+	uint8_t dest_addr_high;
+	uint8_t filename_length;
+	uint8_t filename[];
 };
 
 struct DefineImageAssetCmd {
@@ -64,16 +75,17 @@ struct DefineTilesetImmediateCmd {
 
 struct DefineWindowCmd {
 	int8_t window_index;
+	bool black_or_wrap;
 	uint16_t screen_xcount;
 	uint16_t screen_ycount;
 	int16_t screen_xbegin;
 	int16_t screen_ybegin;
-	uint16_t tile_xbegin;
-	uint16_t tile_ybegin;
+	int32_t tile_xbegin;
+	int32_t tile_ybegin;
 	uint16_t tile_xdim;
 	uint16_t tile_ydim;
-	uint16_t tile_xcount;
-	uint16_t tile_ycount;
+	uint32_t tile_xcount;
+	uint32_t tile_ycount;
 };
 
 struct UpdateWindowSetBothCmd {
@@ -83,6 +95,16 @@ struct UpdateWindowSetBothCmd {
 	uint16_t tile_xcount;
 	uint16_t tile_ycount;
 	uint8_t data[];  // data is 2-byte records per tile, tileset and index
+};
+
+struct UpdateWindowSetUploadCmd {
+	int8_t window_index;
+	uint16_t tile_xbegin;
+	uint16_t tile_ybegin;
+	uint16_t tile_xcount;
+	uint16_t tile_ycount;
+	uint8_t upload_addr_med;
+	uint8_t upload_addr_high;
 };
 
 struct UpdateWindowSingleTilesetCmd {
@@ -109,8 +131,8 @@ struct UpdateWindowSetWindowPositionCmd {
 
 struct UpdateWindowAdjustWindowViewCommand {
 	int8_t window_index;
-	uint16_t tile_xbegin;
-	uint16_t tile_ybegin;
+	uint32_t tile_xbegin;
+	uint32_t tile_ybegin;
 };
 
 struct UpdateWindowEnableCmd {
@@ -322,6 +344,25 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 		} break;
+		case SDHR_CMD_UPLOAD_DATA_FILENAME: {
+			if (!CheckCommandLength(p, end, sizeof(UploadDataFilenameCmd))) return false;
+			UploadDataFilenameCmd* cmd = (UploadDataFilenameCmd*)p;
+			if (message_length != sizeof(UploadDataFilenameCmd) + cmd->filename_length) {
+				CommandError("UploadDataFilename data size mismatch");
+				return false;
+			}
+			std::string filename(cmd->filename, cmd->filename + cmd->filename_length);
+			uint64_t data_offset = (uint64_t)cmd->dest_addr_high * 65536 + (uint64_t)cmd->dest_addr_med * 256;
+			std::ifstream f(filename.c_str(), std::ios::binary | std::ios::ate);
+			int64_t fsize = f.tellg();
+			f.seekg(0, std::ios::beg);
+			if (data_offset + fsize > sizeof(uploaded_data_region)) {
+				CommandError("UploadDataFilename attempting to load past top of memory");
+				return false;
+			}
+			uint8_t* p = uploaded_data_region + data_offset;
+			f.read((char*)p, fsize);
+		} break;
 		case SDHR_CMD_DEFINE_TILESET: {
 			if (!CheckCommandLength(p, end, sizeof(DefineTilesetCmd))) return false;
 			DefineTilesetCmd* cmd = (DefineTilesetCmd*)p;
@@ -367,11 +408,8 @@ bool VidHDSdhr::ProcessCommands() {
 				CommandError("Window exceeds max y resolution");
 				return false;
 			}
-			if (r->tile_xdim % 4 || r->tile_ydim % 4) {
-				CommandError("tile dimensions must be multiple of 4");
-				return false;
-			}
 			r->enabled = false;
+			r->black_or_wrap = cmd->black_or_wrap;
 			r->screen_xcount = cmd->screen_xcount;
 			r->screen_ycount = cmd->screen_ycount;
 			r->screen_xbegin = cmd->screen_xbegin;
@@ -400,13 +438,46 @@ bool VidHDSdhr::ProcessCommands() {
 				CommandError("tile update region exceeds tile dimensions");
 				return false;
 			}
-			// full tile specification: tileset, index, and palette
+			// full tile specification: tileset and index
 			uint64_t data_size = (uint64_t)cmd->tile_xcount * cmd->tile_ycount * 2;
 			if (data_size + sizeof(UpdateWindowSetBothCmd) != message_length) {
 				CommandError("UpdateWindowSetBoth data size mismatch");
 				return false;
 			}
 			uint8_t* sp = cmd->data;
+			for (uint64_t tile_y = 0; tile_y < cmd->tile_ycount; ++tile_y) {
+				uint64_t line_offset = (uint64_t)(cmd->tile_ybegin + tile_y) * r->tile_xcount + cmd->tile_xbegin;
+				for (uint64_t tile_x = 0; tile_x < cmd->tile_xcount; ++tile_x) {
+					uint8_t tileset_index = *sp++;
+					uint8_t tile_index = *sp++;
+					if (tileset_records[tileset_index].xdim != r->tile_xdim ||
+						tileset_records[tileset_index].ydim != r->tile_ydim ||
+						tileset_records[tileset_index].num_entries <= tile_index) {
+						CommandError("invalid tile specification");
+						return false;
+					}
+					r->tilesets[line_offset + tile_x] = tileset_index;
+					r->tile_indexes[line_offset + tile_x] = tile_index;
+				}
+			}
+		} break;
+		case SDHR_CMD_UPDATE_WINDOW_SET_UPLOAD: {
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSetUploadCmd))) return false;
+			UpdateWindowSetUploadCmd* cmd = (UpdateWindowSetUploadCmd*)p;
+			Window* r = windows + cmd->window_index;
+			if ((uint64_t)cmd->tile_xbegin + cmd->tile_xcount > r->tile_xcount ||
+				(uint64_t)cmd->tile_ybegin + cmd->tile_ycount > r->tile_ycount) {
+				CommandError("tile update region exceeds tile dimensions");
+				return false;
+			}
+			// full tile specification: tileset and index
+			uint64_t data_size = (uint64_t)cmd->tile_xcount * cmd->tile_ycount * 2;
+			uint64_t data_offset = (uint64_t)cmd->upload_addr_high * 65536 + (uint64_t)cmd->upload_addr_med * 256;
+			if (data_size + data_offset > sizeof(uploaded_data_region)) {
+				CommandError("UploadWindowSetUpload attempting to read past top of upload memory");
+				return false;
+			}
+			uint8_t* sp = uploaded_data_region + data_offset;
 			for (uint64_t tile_y = 0; tile_y < cmd->tile_ycount; ++tile_y) {
 				uint64_t line_offset = (uint64_t)(cmd->tile_ybegin + tile_y) * r->tile_xcount + cmd->tile_xbegin;
 				for (uint64_t tile_x = 0; tile_x < cmd->tile_xcount; ++tile_x) {
@@ -516,11 +587,6 @@ bool VidHDSdhr::ProcessCommands() {
 			if (!CheckCommandLength(p, end, sizeof(UpdateWindowAdjustWindowViewCommand))) return false;
 			UpdateWindowAdjustWindowViewCommand* cmd = (UpdateWindowAdjustWindowViewCommand*)p;
 			Window* r = windows + cmd->window_index;
-			if ((uint64_t)cmd->tile_ybegin + r->tile_ycount * r->tile_ydim > r->screen_ycount ||
-				(uint64_t)cmd->tile_xbegin + r->tile_xcount * r->tile_xdim > r->screen_xcount) {
-				CommandError("cannot scroll a window past displayable tile area");
-				return false;
-			}
 			r->tile_xbegin = cmd->tile_xbegin;
 			r->tile_ybegin = cmd->tile_ybegin;
 		} break;
@@ -550,7 +616,19 @@ bool VidHDSdhr::ProcessCommands() {
 						uint64_t entry_index = tile_yindex * w->tile_xcount + tile_xindex;
 						TilesetRecord* t = tileset_records + w->tilesets[entry_index];
 						uint64_t tile_index = w->tile_indexes[entry_index];
-						uint16_t pixel_color = t->tile_data[tile_index * t->xdim * t->ydim + tile_yoffset * t->xdim + tile_xoffset];
+						uint16_t pixel_color;
+						if (w->black_or_wrap == 0 &&
+							(tile_yindex < 0 || tile_yindex >= w->tile_ycount ||
+								tile_xindex < 0 || tile_xindex >= w->tile_xcount)) {
+							pixel_color = 0x8000; // outside of tile bounds, pixel is black
+						}
+						else {
+							while (tile_yindex < 0) tile_yindex += w->tile_ycount;
+							while (tile_yindex >= w->tile_ycount) tile_yindex -= w->tile_ycount;
+							while (tile_xindex < 0) tile_xindex -= w->tile_xcount;
+							while (tile_xindex >= w->tile_xcount) tile_xindex -= w->tile_xcount;
+							pixel_color = t->tile_data[tile_index * t->xdim * t->ydim + tile_yoffset * t->xdim + tile_xoffset];
+						}
 						if ( (pixel_color & 0x8000) == 0) {
 							continue; // zero alpha, don'd draw
 						}

@@ -66,6 +66,7 @@ private:
 
 	struct Window {
 		uint8_t enabled;
+		bool black_or_wrap;      // false: viewport is black outside of tile range, true: viewport wraps
 		uint64_t screen_xcount;  // width in pixels of visible screen area of window
 		uint64_t screen_ycount;
 		int64_t screen_xbegin;   // pixel xy coordinate where window begins
