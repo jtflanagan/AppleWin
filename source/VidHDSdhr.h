@@ -45,7 +45,7 @@ private:
 	struct ImageAsset {
 		void AssignByFilename(VidHDSdhr* owner, const char* filename);
 		void AssignByMemory(VidHDSdhr* owner, const uint8_t* buffer, uint64_t size);
-		void ExtractTile(VidHDSdhr* owner, uint16_t* tile_p,
+		void ExtractTile(VidHDSdhr* owner, uint32_t* tile_p,
 			uint16_t tile_xdim, uint16_t tile_ydim, uint64_t xsource, uint64_t ysource);
 		// image assets are full 32-bit bitmap files, uploaded from PNG
 		uint64_t image_xcount = 0;
@@ -61,12 +61,11 @@ private:
 		uint64_t xdim;
 		uint64_t ydim;
 		uint64_t num_entries;
-		uint16_t* tile_data = NULL;  // tiledata is 16-bit RGB
+		uint32_t* tile_data = NULL;  // tiledata is 32 bit rgba
 	};
 
 	struct Window {
 		uint8_t enabled;
-		bool black_or_wrap;      // false: viewport is black outside of tile range, true: viewport wraps
 		uint64_t screen_xcount;  // width in pixels of visible screen area of window
 		uint64_t screen_ycount;
 		int64_t screen_xbegin;   // pixel xy coordinate where window begins
@@ -90,6 +89,6 @@ private:
 	ImageAsset image_assets[256];
 	TilesetRecord tileset_records[256];
 	Window windows[256];
-	uint16_t screen_color[screen_xcount * screen_ycount];
+	uint32_t screen_color[screen_xcount * screen_ycount];
 };
 

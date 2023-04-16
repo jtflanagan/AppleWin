@@ -245,6 +245,10 @@ void VidHDCard::UpdateSHRCell(bool is640Mode, bool isColorFillMode, uint16_t add
 }
 
 void VidHDCard::SDHRWritePixels(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress) {
+	if (!pVideoAddress) {
+		// can happen right at init, let it go till init completes
+		return;
+	}
 	if (!m_pVidHDSdhr) {
 		m_pVidHDSdhr = new VidHDSdhr();
 	}

@@ -2030,6 +2030,7 @@ void NTSC_SetVideoMode( uint32_t uVideoModeFlags, bool bDelay/*=false*/ )
 		GetVideo().ClearFrameBuffer(); // SDHR can get screen residue from other modes
 		g_pFuncUpdateGraphicsScreen = updateScreenSDHR;
 		g_pFuncUpdateTextScreen = updateScreenSDHR;
+		updateVideoScannerAddress();
 		return;
 	}
 
