@@ -58,6 +58,10 @@ Advanced
 . Load State			WM_USER_LOADSTATE
 . Clone					WM_USER_RESTART
 . MrFreeze Rom			WM_USER_RESTART
+SuperDuper HiRes (SDHR)
+. Enable				WM_USER_RESTART
+. IP					WM_USER_RESTART
+. Port					WM_USER_RESTART
 
 Requirements:
 -------------

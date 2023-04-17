@@ -123,6 +123,9 @@ enum AppMode_e
 #define  REGVALUE_LAST_DISK_2		"Last Disk Image 2"
 #define  REGVALUE_LAST_HARDDISK_1	"Last Harddisk Image 1"
 #define  REGVALUE_LAST_HARDDISK_2	"Last Harddisk Image 2"
+#define  REGVALUE_SDHR_REMOTE_ENABLED "SDHR eGPU"
+#define  REGVALUE_SDHR_REMOTE_IP	"SDHR eGPU IP Address"
+#define	 REGVALUE_SDHR_REMOTE_PORT	"SDHR eGPU IP Port"
 
 // Preferences 
 #define REG_PREFS						"Preferences"

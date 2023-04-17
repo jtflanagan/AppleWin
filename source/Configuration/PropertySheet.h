@@ -61,4 +61,5 @@ private:
 	CPageSound m_PageSound;
 	CPageDisk m_PageDisk;
 	CPageAdvanced m_PageAdvanced;
+	CPageSDHR m_PageSDHR;
 };

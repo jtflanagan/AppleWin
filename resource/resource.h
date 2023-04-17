@@ -44,6 +44,7 @@
 #define IDR_MENU_DISK_POPUP             143
 #define IDD_ABOUT                       145
 #define IDC_CHECK_CONFIRM_REBOOT        146
+#define IDD_PROPPAGE_SOUND1             146
 #define IDR_TK3000_2E_ROM               147
 #define IDR_TKCLOCK_FW                  148
 #define IDR_DISK2_13SECTOR_FW           149
@@ -121,6 +122,10 @@
 #define IDC_CHECK_TFE_VIRTUAL_DNS       1090
 #define IDC_TFE_NPCAP_INFO              1091
 #define IDC_COMBO_GAME_IO_CONNECTOR     1092
+#define IDD_PROPPAGE_SDHR				3000
+#define IDC_SDHR_REMOTE_ENABLED			3001
+#define IDC_SDHR_REMOTE_IP				3002
+#define IDC_SDHR_REMOTE_PORT			3003
 #define IDM_EXIT                        40001
 #define IDM_HELP                        40002
 #define IDM_ABOUT                       40003

@@ -274,6 +274,9 @@
     <ClCompile Include="source\MockingboardCardManager.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
+    <ClCompile Include="source\Configuration\PageSDHR.cpp">
+      <Filter>Source Files\Configuration</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\CommonVICE\6510core.h">
@@ -617,6 +620,9 @@
     </ClInclude>
     <ClInclude Include="source\MockingboardDefs.h">
       <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Configuration\PageSDHR.h">
+      <Filter>Source Files\Configuration</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
