@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "../Common.h"
 #include "../Registry.h"
 #include "../resource/resource.h"
+#include <string>
 
 CPageSDHR* CPageSDHR::ms_this = 0;	// reinit'd in ctor
 
@@ -79,24 +80,29 @@ INT_PTR CPageSDHR::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARA
 		case IDC_SDHR_REMOTE_IP:
 			break;
 		case IDC_SDHR_REMOTE_PORT:
+		{
+			BOOL _isSuccess;
+			auto _remotePort = GetDlgItemInt(hWnd, IDC_SDHR_REMOTE_PORT, &_isSuccess, false);
+			if (!_isSuccess)
+				SetDlgItemInt(hWnd, IDC_SDHR_REMOTE_PORT, 8080, false);
 			break;
+		}
 		}
 		break;
 
 	case WM_INITDIALOG:
 	{
-		DWORD m_isEnabled;
 		REGLOAD_DEFAULT(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), &m_isEnabled, 0);
 		CheckDlgButton(hWnd, IDC_SDHR_REMOTE_ENABLED, m_isEnabled == 1 ? BST_CHECKED : BST_UNCHECKED);
-		// TODO: Text Fields
 
-		CHAR m_remoteIp[16] = "";
-		RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, m_remoteIp, 15);
-		SetDlgItemText(hWnd, IDC_SDHR_REMOTE_IP, m_remoteIp);
+		CHAR _remoteIp[16] = "";
+		RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, _remoteIp, 15);
+		SetDlgItemText(hWnd, IDC_SDHR_REMOTE_IP, _remoteIp);
+		m_SDHRNetworkIP = _remoteIp;
 
-		CHAR m_remotePort[6] = "";
-		RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, m_remotePort, 15);
-		SetDlgItemText(hWnd, IDC_SDHR_REMOTE_PORT, m_remotePort);
+		m_SDHRNetworkPort = 8080;
+		RegLoadValue(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, &m_SDHRNetworkPort);
+		SetDlgItemInt(hWnd, IDC_SDHR_REMOTE_PORT, m_SDHRNetworkPort, false);
 
 		break;
 	}
@@ -108,18 +114,23 @@ INT_PTR CPageSDHR::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARA
 void CPageSDHR::DlgOK(HWND hWnd)
 {
 	if (IsDlgButtonChecked(hWnd, IDC_SDHR_REMOTE_ENABLED) == BST_CHECKED)
-		REGSAVE(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), 1);
+		m_isEnabled = 1;
 	else
-		REGSAVE(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), 0);
+		m_isEnabled = 0;
+	REGSAVE(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), m_isEnabled);
 
-	CHAR m_remoteIp[16] = "";
-	GetDlgItemText(hWnd, IDC_SDHR_REMOTE_IP, m_remoteIp, 15);
-	RegSaveString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, m_remoteIp);
+	CHAR _remoteIp[16] = "";
+	GetDlgItemText(hWnd, IDC_SDHR_REMOTE_IP, _remoteIp, 15);
+	RegSaveString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, _remoteIp);
+	m_SDHRNetworkIP = _remoteIp;
 
-	CHAR m_remotePort[6] = "";
-	GetDlgItemText(hWnd, IDC_SDHR_REMOTE_PORT, m_remotePort, 6);
-	RegSaveString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, m_remotePort);
-
+	BOOL _isSuccess;
+	auto _portTemp = GetDlgItemInt(hWnd, IDC_SDHR_REMOTE_PORT, &_isSuccess, false);
+	if (_isSuccess)
+	{
+		m_SDHRNetworkPort = _portTemp;
+		RegSaveValue(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, m_SDHRNetworkPort);
+	}
 	m_PropertySheetHelper.PostMsgAfterClose(hWnd, m_Page);
 }
 

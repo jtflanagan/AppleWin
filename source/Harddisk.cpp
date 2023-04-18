@@ -521,6 +521,10 @@ BYTE __stdcall HarddiskInterfaceCard::IORead(WORD pc, WORD addr, BYTE bWrite, BY
 										breakpointHit = DebuggerCheckMemBreakpoints(dstAddr, size, true);	// GH#1103
 
 									memcpy(page + (dstAddr & 0xff), pSrc, size);
+									for (size_t i = 0; i < size; i++)
+									{
+										g_sdhrNetworker->BusData(dstAddr + i, *(pSrc + i));
+									}
 									pSrc += size;
 									dstAddr = (dstAddr + size) & (MEMORY_LENGTH-1);	// wraps at 64KiB boundary
 

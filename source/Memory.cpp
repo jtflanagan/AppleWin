@@ -47,6 +47,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Tape.h"
 #include "RGBMonitor.h"
 #include "VidHD.h"
+#include "Registry.h"
 
 #include "z80emu.h"
 #include "Z80VICE/z80.h"
@@ -243,6 +244,8 @@ static const UINT kNumAnnunciators = 4;
 static bool g_Annunciator[kNumAnnunciators] = {};
 
 BYTE __stdcall IO_Annunciator(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
+
+SDHRNetworker* g_sdhrNetworker = new SDHRNetworker();
 
 //=============================================================================
 
@@ -1815,6 +1818,9 @@ void MemReset()
 	memset(memdirty, 0, 0x100);
 
 	memVidHD = NULL;
+
+	// Initialize the SDHRNetworker;
+	g_sdhrNetworker->Connect();
 
 	//
 

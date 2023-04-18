@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include "Card.h"
+#include "SDHRNetworker.h"
 
 // Memory Flag
 #define  MF_80STORE    0x00000001
@@ -60,6 +61,7 @@ extern LPBYTE     memwrite[0x100];
 extern LPBYTE     mem;
 extern LPBYTE     memdirty;
 extern LPBYTE     memVidHD;
+extern SDHRNetworker* g_sdhrNetworker;
 
 #ifdef RAMWORKS
 const UINT kMaxExMemoryBanks = 127;	// 127 * aux mem(64K) + main mem(64K) = 8MB

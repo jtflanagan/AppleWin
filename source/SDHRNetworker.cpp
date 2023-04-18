@@ -2,14 +2,46 @@
 #include "SDHRNetworker.h"
 #include <stdint.h>
 #include "Memory.h"
+#include "Interface.h"
+#include "Configuration/IPropertySheet.h"
+#include "Registry.h"
 
 constexpr uint16_t cxSDHR_ctrl = 0xC0B0;	// SDHR command
 constexpr uint16_t cxSDHR_data = 0xC0B1;	// SDHR data
+
+bool SDHRNetworker::Connect()
+{
+	return SDHRNetworker::Connect("", 0);
+}
 
 bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 {
 	if (client_socket > 0)
 		closesocket(client_socket);
+
+	DWORD _sdhrIsEnabled = 0;
+	REGLOAD_DEFAULT(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), &_sdhrIsEnabled, 0);
+	if (_sdhrIsEnabled == 0)
+		return false;
+
+	DWORD _sdhrPort = 0;
+	RegLoadValue(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, &_sdhrPort);
+
+	CHAR _remoteIp[16] = "";
+	RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, _remoteIp, 15);
+
+	server_addr.sin_family = AF_INET;
+	memset(&(server_addr.sin_zero), '\0', 8);
+	if (server_ip.length() != 0)
+		server_addr.sin_addr.s_addr = inet_addr(server_ip.c_str());
+	else
+		server_addr.sin_addr.s_addr = inet_addr(_remoteIp);
+
+	if (server_port != 0)
+		server_addr.sin_port = htons(server_port);
+	else
+		server_addr.sin_port = htons(_sdhrPort);
+
 	WSADATA wsaData;
 	int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (result != 0) {
@@ -17,10 +49,6 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 		bIsConnected = false;
 		return bIsConnected;
 	}
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(server_port);
-	server_addr.sin_addr.s_addr = inet_addr(server_ip.c_str());
-	memset(&(server_addr.sin_zero), '\0', 8);
 
 	client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (client_socket == INVALID_SOCKET) {
@@ -44,9 +72,10 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 
 void SDHRNetworker::BusData(WORD addr, BYTE data)
 {
-	// TODO: Check if SDHR_NETWORKING is off
+	if (!bIsConnected)
+		return;
 
-	if (addr >= 0x0200 && addr >= 0xC000)	// memory that matters
+	if (addr >= 0x0200 && addr < 0xC000)	// memory that matters
 	{
 		if (GetMemMode() & MF_AUXWRITE)		// Writing to aux memory
 			return;

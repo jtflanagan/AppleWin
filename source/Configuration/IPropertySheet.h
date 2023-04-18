@@ -30,4 +30,7 @@ public:
 	virtual void SetMouseRestrictToWindow(UINT uValue) = 0;
 	virtual UINT GetTheFreezesF8Rom(void) = 0;
 	virtual void SetTheFreezesF8Rom(UINT uValue) = 0;
+	virtual BOOL GetIsSDHRNetworked(void) = 0;
+	virtual std::string GetSDHRNetworkIp(void) = 0;
+	virtual UINT GetSDHRNetworkPort(void) = 0;
 };

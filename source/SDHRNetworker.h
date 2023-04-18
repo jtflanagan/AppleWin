@@ -13,7 +13,7 @@ struct BusPacket {
 	BYTE pad;
 };
 
-#pragma pop
+#pragma pack(pop)
 
 /**
  * @brief Class that sends Apple 2 bus packets to the network
@@ -26,6 +26,7 @@ struct BusPacket {
 class SDHRNetworker
 {
 public:
+	bool Connect();
 	bool Connect(std::string server_ip, int server_port);
 	bool IsConnected() { return bIsConnected; };
 	void BusData(WORD addr, BYTE data);

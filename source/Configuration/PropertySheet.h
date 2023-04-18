@@ -55,6 +55,9 @@ public:
 	virtual void SetMouseRestrictToWindow(UINT uValue){ m_PageInput.SetMouseRestrictToWindow(uValue); }
 	virtual UINT GetTheFreezesF8Rom(void){ return m_PageAdvanced.GetTheFreezesF8Rom(); }
 	virtual void SetTheFreezesF8Rom(UINT uValue){ m_PageAdvanced.SetTheFreezesF8Rom(uValue); }
+	virtual BOOL GetIsSDHRNetworked(void) { return m_PageSDHR.GetIsSDHRNetworked(); }
+	virtual std::string GetSDHRNetworkIp(void) { return m_PageSDHR.GetSDHRNetworkIp(); }
+	virtual UINT GetSDHRNetworkPort(void) { return m_PageSDHR.GetSDHRNetworkPort(); }
 
 private:
 	CPropertySheetHelper m_PropertySheetHelper;
