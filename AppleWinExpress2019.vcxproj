@@ -105,6 +105,7 @@
     <ClInclude Include="source\Riff.h" />
     <ClInclude Include="source\SAM.h" />
     <ClInclude Include="source\SaveState.h" />
+    <ClInclude Include="source\SDHRNetworker.h" />
     <ClInclude Include="source\SerialComms.h" />
     <ClInclude Include="source\SNESMAX.h" />
     <ClInclude Include="source\SoundCore.h" />
@@ -213,6 +214,7 @@
     <ClCompile Include="source\Registry.cpp" />
     <ClCompile Include="source\Riff.cpp" />
     <ClCompile Include="source\SaveState.cpp" />
+    <ClCompile Include="source\SDHRNetworker.cpp" />
     <ClCompile Include="source\SerialComms.cpp" />
     <ClCompile Include="source\SNESMAX.cpp" />
     <ClCompile Include="source\SoundCore.cpp" />

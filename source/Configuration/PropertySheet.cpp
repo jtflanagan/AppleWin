@@ -69,6 +69,12 @@ void CPropertySheet::Init(void)
 	PropSheetPages[PG_ADVANCED].pszTemplate = MAKEINTRESOURCE(IDD_PROPPAGE_ADVANCED);
 	PropSheetPages[PG_ADVANCED].pfnDlgProc = CPageAdvanced::DlgProc;
 
+	PropSheetPages[PG_SDHR].dwSize = sizeof(PROPSHEETPAGE);
+	PropSheetPages[PG_SDHR].dwFlags = PSP_DEFAULT;
+	PropSheetPages[PG_SDHR].hInstance = GetFrame().g_hInstance;
+	PropSheetPages[PG_SDHR].pszTemplate = MAKEINTRESOURCE(IDD_PROPPAGE_SDHR);
+	PropSheetPages[PG_SDHR].pfnDlgProc = CPageSDHR::DlgProc;
+
 	PROPSHEETHEADER PropSheetHeader;
 
 	PropSheetHeader.dwSize = sizeof(PROPSHEETHEADER);

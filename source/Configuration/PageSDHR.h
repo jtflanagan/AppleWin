@@ -11,7 +11,7 @@ class CPageSDHR : private IPropertySheetPage
 {
 public:
 	CPageSDHR(CPropertySheetHelper& PropertySheetHelper) :
-		m_Page(PG_SOUND),
+		m_Page(PG_SDHR),
 		m_PropertySheetHelper(PropertySheetHelper)
 	{
 		CPageSDHR::ms_this = this;

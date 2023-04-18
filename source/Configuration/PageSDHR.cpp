@@ -86,9 +86,17 @@ INT_PTR CPageSDHR::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARA
 	case WM_INITDIALOG:
 	{
 		DWORD m_isEnabled;
-		REGLOAD_DEFAULT(TEXT(REGVALUE_SAVE_STATE_ON_EXIT), &m_isEnabled, 0);
+		REGLOAD_DEFAULT(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), &m_isEnabled, 0);
 		CheckDlgButton(hWnd, IDC_SDHR_REMOTE_ENABLED, m_isEnabled == 1 ? BST_CHECKED : BST_UNCHECKED);
 		// TODO: Text Fields
+
+		CHAR m_remoteIp[16] = "";
+		RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, m_remoteIp, 15);
+		SetDlgItemText(hWnd, IDC_SDHR_REMOTE_IP, m_remoteIp);
+
+		CHAR m_remotePort[6] = "";
+		RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, m_remotePort, 15);
+		SetDlgItemText(hWnd, IDC_SDHR_REMOTE_PORT, m_remotePort);
 
 		break;
 	}
@@ -99,21 +107,18 @@ INT_PTR CPageSDHR::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARA
 
 void CPageSDHR::DlgOK(HWND hWnd)
 {
-	const SoundType_e newSoundType = (SoundType_e)SendDlgItemMessage(hWnd, IDC_SOUNDTYPE, CB_GETCURSEL, 0, 0);
+	if (IsDlgButtonChecked(hWnd, IDC_SDHR_REMOTE_ENABLED) == BST_CHECKED)
+		REGSAVE(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), 1);
+	else
+		REGSAVE(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), 0);
 
-	const DWORD dwSpkrVolume = SendDlgItemMessage(hWnd, IDC_SPKR_VOLUME, TBM_GETPOS, 0, 0);
-	const DWORD dwMBVolume = SendDlgItemMessage(hWnd, IDC_MB_VOLUME, TBM_GETPOS, 0, 0);
+	CHAR m_remoteIp[16] = "";
+	GetDlgItemText(hWnd, IDC_SDHR_REMOTE_IP, m_remoteIp, 15);
+	RegSaveString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_IP), 1, m_remoteIp);
 
-	SpkrSetEmulationType(newSoundType);
-	DWORD dwSoundType = (soundtype == SOUND_NONE) ? REG_SOUNDTYPE_NONE : REG_SOUNDTYPE_WAVE;
-	REGSAVE(TEXT(REGVALUE_SOUND_EMULATION), dwSoundType);
-
-	// NB. Volume: 0=Loudest, VOLUME_MAX=Silence
-	SpkrSetVolume(dwSpkrVolume, VOLUME_MAX);
-	GetCardMgr().GetMockingboardCardMgr().SetVolume(dwMBVolume, VOLUME_MAX);
-
-	REGSAVE(TEXT(REGVALUE_SPKR_VOLUME), SpkrGetVolume());
-	REGSAVE(TEXT(REGVALUE_MB_VOLUME), GetCardMgr().GetMockingboardCardMgr().GetVolume());
+	CHAR m_remotePort[6] = "";
+	GetDlgItemText(hWnd, IDC_SDHR_REMOTE_PORT, m_remotePort, 6);
+	RegSaveString(TEXT(REG_PREFS), TEXT(REGVALUE_SDHR_REMOTE_PORT), 1, m_remotePort);
 
 	m_PropertySheetHelper.PostMsgAfterClose(hWnd, m_Page);
 }

@@ -277,6 +277,9 @@
     <ClCompile Include="source\Configuration\PageSDHR.cpp">
       <Filter>Source Files\Configuration</Filter>
     </ClCompile>
+    <ClCompile Include="source\SDHRNetworker.cpp">
+      <Filter>Source Files\Video</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\CommonVICE\6510core.h">
@@ -623,6 +626,9 @@
     </ClInclude>
     <ClInclude Include="source\Configuration\PageSDHR.h">
       <Filter>Source Files\Configuration</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SDHRNetworker.h">
+      <Filter>Source Files\Video</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -7,6 +7,7 @@
 #include "PageSound.h"
 #include "PageDisk.h"
 #include "PageAdvanced.h"
+#include "PageSDHR.h"
 
 class CPropertySheet : public IPropertySheet
 {
@@ -16,7 +17,8 @@ public:
 		m_PageInput(m_PropertySheetHelper),
 		m_PageSound(m_PropertySheetHelper),
 		m_PageDisk(m_PropertySheetHelper),
-		m_PageAdvanced(m_PropertySheetHelper)
+		m_PageAdvanced(m_PropertySheetHelper),
+		m_PageSDHR(m_PropertySheetHelper)
 	{
 	}
 	virtual ~CPropertySheet(){}
