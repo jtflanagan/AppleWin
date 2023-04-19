@@ -2,7 +2,6 @@
 
 #include "Common.h"
 #include "Card.h"
-#include "SDHRNetworker.h"
 
 // Memory Flag
 #define  MF_80STORE    0x00000001

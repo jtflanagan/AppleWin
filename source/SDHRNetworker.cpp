@@ -9,6 +9,19 @@
 constexpr uint16_t cxSDHR_ctrl = 0xC0B0;	// SDHR command
 constexpr uint16_t cxSDHR_data = 0xC0B1;	// SDHR data
 
+bool SDHRNetworker::IsEnabled()
+{
+	DWORD _sdhrIsEnabled = 0;
+	REGLOAD_DEFAULT(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), &_sdhrIsEnabled, 0);
+	return (_sdhrIsEnabled != 0);
+}
+
+void SDHRNetworker::Disconnect()
+{
+	if (client_socket > 0)
+		closesocket(client_socket);
+}
+
 bool SDHRNetworker::Connect()
 {
 	return SDHRNetworker::Connect("", 0);
@@ -16,12 +29,9 @@ bool SDHRNetworker::Connect()
 
 bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 {
-	if (client_socket > 0)
-		closesocket(client_socket);
+	Disconnect();
 
-	DWORD _sdhrIsEnabled = 0;
-	REGLOAD_DEFAULT(TEXT(REGVALUE_SDHR_REMOTE_ENABLED), &_sdhrIsEnabled, 0);
-	if (_sdhrIsEnabled == 0)
+	if (!IsEnabled())
 		return false;
 
 	DWORD _sdhrPort = 0;
@@ -66,30 +76,77 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 	}
 	bIsConnected = true;
 
-	packet.pad = 0;
+	s_packet.pad = 0;
 	return bIsConnected;
 }
 
-void SDHRNetworker::BusDataPacket(WORD addr, BYTE data)
+void SDHRNetworker::BusCtrlPacket(BYTE command)
 {
-	if (!bIsConnected)
-		return;
-	if (addr == cxSDHR_data || addr == cxSDHR_ctrl)
+	s_packet.addr = cxSDHR_ctrl;
+	s_packet.data = command;
+	send(client_socket, (char*)&s_packet, 4, 0);
+}
+
+void SDHRNetworker::BusDataPacket(BYTE data)
+{
+	s_packet.addr = cxSDHR_data;
+	s_packet.data = data;
+	send(client_socket, (char*)&s_packet, 4, 0);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Streams
+//////////////////////////////////////////////////////////////////////////
+
+
+void SDHRNetworker::BusDataCommandStream(BYTE* data, int length)
+{
+	// Send a bunch of SDHR_STREAM_CHUNK
+	// and the remaining packets individually
+
+	int numBlocks = length / SDHR_STREAM_CHUNK;
+	for (size_t b = 0; b < numBlocks; b++)
 	{
-		packet.addr = addr;
-		packet.data = data;
-		send(client_socket, (char*)&packet, 4, 0);
+		for (size_t i = 0; i < SDHR_STREAM_CHUNK; i++)
+		{
+			s_stream.packets[i].addr = cxSDHR_data;
+			s_stream.packets[i].data = *(data + i);
+		}
+		send(client_socket, (char*)&s_stream, sizeof(BusPacket) * SDHR_STREAM_CHUNK, 0);
+		data += SDHR_STREAM_CHUNK;
+	}
+	int remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
+	s_packet.addr = cxSDHR_data;
+	for (size_t i = 0; i < remainingPackets; i++)
+	{
+		s_packet.data = *(data + i);
+		send(client_socket, (char*)&s_packet, sizeof(BusPacket), 0);
 	}
 }
 
-void SDHRNetworker::BusDataBlock(WORD start_addr, bool isMainMemory)
+void SDHRNetworker::BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int length)
 {
-	LPBYTE memPtr;
-	isMainMemory ? memPtr = MemGetMainPtr(start_addr) : memPtr = MemGetAuxPtr(start_addr);
-	for (size_t i = 0; i < SDHR_UPLOAD_SIZE; i++)
+	// Send a bunch of SDHR_STREAM_CHUNK
+// and the remaining packets individually
+
+	int numBlocks = length / SDHR_STREAM_CHUNK;
+	int offset = 0;
+	for (size_t b = 0; b < numBlocks; b++)
 	{
-		block.packets[i].addr = start_addr + i;
-		block.packets[i].data = *(memPtr + i);
+		for (size_t i = 0; i < SDHR_STREAM_CHUNK; i++)
+		{
+			s_stream.packets[i].addr = source_address + offset;
+			s_stream.packets[i].data = *(memPtr + offset);
+			++offset;
+		}
+		send(client_socket, (char*)&s_stream, sizeof(BusPacket) * SDHR_STREAM_CHUNK, 0);
 	}
-	send(client_socket, (char*)&block, SDHR_UPLOAD_SIZE, 0);
+	int remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
+	for (size_t i = 0; i < remainingPackets; i++)
+	{
+		s_packet.addr = source_address + offset;;
+		s_packet.data = *(memPtr + offset);
+		++offset;
+		send(client_socket, (char*)&s_packet, sizeof(BusPacket), 0);
+	}
 }

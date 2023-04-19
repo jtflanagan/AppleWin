@@ -18,9 +18,6 @@ LPBYTE         memVidHD     = NULL;	// TODO: Init
 iofunction		IORead[256] = {0};	// TODO: Init
 iofunction		IOWrite[256] = {0};	// TODO: Init
 
-SDHRNetworker* g_sdhrNetworker = new SDHRNetworker();
-void SDHRNetworker::BusData(WORD addr, BYTE data) { };
-
 BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles)
 {
 	return 0;

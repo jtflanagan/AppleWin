@@ -133,7 +133,7 @@ VidHDSdhr::~VidHDSdhr() {
 			free(windows[i].tile_indexes);
 		}
 	}
-
+	delete m_pSDHRNetworker;
 }
 
 void VidHDSdhr::ImageAsset::AssignByFilename(VidHDSdhr* owner, const char* filename) {
@@ -312,6 +312,13 @@ bool VidHDSdhr::ProcessCommands() {
 		//nothing to do
 		return true;
 	}
+
+	bool isSdhrNetworked = m_pSDHRNetworker->IsEnabled();
+	if (isSdhrNetworked)
+		if (!m_pSDHRNetworker->IsConnected())
+			m_pSDHRNetworker->Connect();
+	isSdhrNetworked = m_pSDHRNetworker->IsConnected();
+
 	BYTE* begin = &command_buffer[0];
 	BYTE* end = begin + command_buffer.size();
 	BYTE* p = begin;
@@ -324,6 +331,7 @@ bool VidHDSdhr::ProcessCommands() {
 		if (!CheckCommandLength(p, end, message_length)) return false;
 		p += 2;
 		BYTE cmd = *p++;
+
 		switch (cmd) {
 		case SDHR_CMD_UPLOAD_DATA: {
 			LogFileOutput("UploadData\n");
@@ -332,6 +340,8 @@ bool VidHDSdhr::ProcessCommands() {
 			uint64_t dest_offset = (uint64_t)cmd->dest_block * 512;
 			uint64_t data_size = (uint64_t)512;
 			memcpy(uploaded_data_region + dest_offset, MemGetMainPtr(cmd->source_addr), data_size);
+			if (isSdhrNetworked)
+				m_pSDHRNetworker->BusDataMemoryStream(MemGetMainPtr(cmd->source_addr), cmd->source_addr, data_size);
 		} break;
 		case SDHR_CMD_DEFINE_IMAGE_ASSET: {
 			LogFileOutput("DefineImageAsset\n");
@@ -441,7 +451,6 @@ bool VidHDSdhr::ProcessCommands() {
 				r->tilesets[i] = tileset_index;
 				r->tile_indexes[i] = tile_index;
 			}
-			p += cmd->data_length;
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SET_UPLOAD: {
 			LogFileOutput("UpdateWindowSetUpload\n");
@@ -557,6 +566,8 @@ bool VidHDSdhr::ProcessCommands() {
 			return false;
 		}
 		p += message_length - 3;
+		if (isSdhrNetworked)
+			m_pSDHRNetworker->BusDataCommandStream(p - message_length, message_length);
 	}
 	if (p == end) {
 		// rubber meets the road, draw the windows to the screen

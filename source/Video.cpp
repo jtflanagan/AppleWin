@@ -38,7 +38,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "RGBMonitor.h"
 #include "VidHD.h"
 #include "YamlHelper.h"
-#include "RemoteControl/RemoteControlManager.h"	// RIK
 
 #define  SW_80COL         (g_uVideoMode & VF_80COL)
 #define  SW_DHIRES        (g_uVideoMode & VF_DHIRES)
@@ -680,13 +679,6 @@ void Video::Config_Load_Video()
 	REGLOAD_DEFAULT(TEXT(REGVALUE_VIDEO_REFRESH_RATE), &dwTmp, (DWORD)VR_60HZ);
 	SetVideoRefreshRate((VideoRefreshRate_e)dwTmp);
 
-	// RIK START
-	REGLOAD_DEFAULT(TEXT(REGVALUE_VIDEO_REMOTECONTROL), &dwTmp, (DWORD)false);
-	RemoteControlManager::setRemoteControlEnabled(dwTmp);
-	REGLOAD_DEFAULT(TEXT(REGVALUE_VIDEO_RC_TRACKONLY), &dwTmp, (DWORD)false);
-	RemoteControlManager::setTrackOnlyEnabled(dwTmp);
-	// RIK END
-
 
 	//
 
@@ -733,8 +725,6 @@ void Video::Config_Save_Video()
 	REGSAVE(TEXT(REGVALUE_VIDEO_STYLE)     ,g_eVideoStyle);
 	REGSAVE(TEXT(REGVALUE_VIDEO_MONO_COLOR),g_nMonochromeRGB);
 	REGSAVE(TEXT(REGVALUE_VIDEO_REFRESH_RATE), GetVideoRefreshRate());
-	REGSAVE(TEXT(REGVALUE_VIDEO_REMOTECONTROL), RemoteControlManager::isRemoteControlEnabled());		// RIK
-	REGSAVE(TEXT(REGVALUE_VIDEO_RC_TRACKONLY), RemoteControlManager::isTrackOnlyEnabled());		// RIK
 }
 
 //===========================================================================
