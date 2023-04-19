@@ -112,7 +112,7 @@ void SDHRNetworker::BusDataCommandStream(BYTE* data, int length)
 			s_stream.packets[i].addr = cxSDHR_data;
 			s_stream.packets[i].data = *(data + i);
 		}
-		send(client_socket, (char*)&s_stream, sizeof(BusPacket) * SDHR_STREAM_CHUNK, 0);
+		send(client_socket, (char*)&s_stream, sizeof(BusStream), 0);
 		data += SDHR_STREAM_CHUNK;
 	}
 	int remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
