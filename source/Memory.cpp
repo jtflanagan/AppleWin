@@ -245,8 +245,6 @@ static bool g_Annunciator[kNumAnnunciators] = {};
 
 BYTE __stdcall IO_Annunciator(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
 
-SDHRNetworker* g_sdhrNetworker = new SDHRNetworker();
-
 //=============================================================================
 
 // Default memory types on a VM restart
@@ -1818,9 +1816,6 @@ void MemReset()
 	memset(memdirty, 0, 0x100);
 
 	memVidHD = NULL;
-
-	// Initialize the SDHRNetworker;
-	g_sdhrNetworker->Connect();
 
 	//
 

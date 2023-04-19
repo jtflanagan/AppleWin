@@ -70,26 +70,26 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 	return bIsConnected;
 }
 
-void SDHRNetworker::BusData(WORD addr, BYTE data)
+void SDHRNetworker::BusDataPacket(WORD addr, BYTE data)
 {
 	if (!bIsConnected)
 		return;
-
-	if (addr >= 0x0200 && addr < 0xC000)	// memory that matters
+	if (addr == cxSDHR_data || addr == cxSDHR_ctrl)
 	{
-		if (GetMemMode() & MF_AUXWRITE)		// Writing to aux memory
-			return;
-		SendData(addr, data);
+		packet.addr = addr;
+		packet.data = data;
+		send(client_socket, (char*)&packet, 4, 0);
 	}
-	else if (addr == cxSDHR_data)			// Data Cxxx command
-		SendData(addr, data);
-	else if (addr == cxSDHR_ctrl)			// Control Cxxx command
-		SendData(addr, data);
 }
 
-void SDHRNetworker::SendData(WORD addr, BYTE data)
+void SDHRNetworker::BusDataBlock(WORD start_addr, bool isMainMemory)
 {
-	packet.addr = addr;
-	packet.data = data;
-	send(client_socket, (char*)&packet, 4, 0);
+	LPBYTE memPtr;
+	isMainMemory ? memPtr = MemGetMainPtr(start_addr) : memPtr = MemGetAuxPtr(start_addr);
+	for (size_t i = 0; i < SDHR_UPLOAD_SIZE; i++)
+	{
+		block.packets[i].addr = start_addr + i;
+		block.packets[i].data = *(memPtr + i);
+	}
+	send(client_socket, (char*)&block, SDHR_UPLOAD_SIZE, 0);
 }
