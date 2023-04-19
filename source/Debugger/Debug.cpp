@@ -6912,6 +6912,12 @@ Update_t _ViewOutput ( ViewVideoPage_t iPage, int bVideoModeFlags )
 		return _ViewOutput( VIEW_PAGE_1, VF_SHR );
 	}
 
+// Super Duper Hi-Res
+	Update_t CmdViewOutput_SDHR(int nArgs)
+	{
+		return _ViewOutput(VIEW_PAGE_1, VF_SDHR);  // TODO: not right, needs fixing
+	}
+
 // Watches ________________________________________________________________________________________
 
 

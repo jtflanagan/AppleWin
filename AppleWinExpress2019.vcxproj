@@ -113,6 +113,7 @@
     <ClInclude Include="source\Speech.h" />
     <ClInclude Include="source\SSI263.h" />
     <ClInclude Include="source\SSI263Phonemes.h" />
+    <ClInclude Include="source\stb_image.h" />
     <ClInclude Include="source\StdAfx.h" />
     <ClInclude Include="source\StrFormat.h" />
     <ClInclude Include="source\SynchronousEventManager.h" />
@@ -132,6 +133,7 @@
     <ClInclude Include="source\Utilities.h" />
     <ClInclude Include="source\Video.h" />
     <ClInclude Include="Source\VidHD.h" />
+    <ClInclude Include="source\VidHDSdhr.h" />
     <ClInclude Include="source\W5100.h" />
     <ClInclude Include="source\Windows\AppleWin.h" />
     <ClInclude Include="source\Windows\DirectInput.h" />
@@ -265,6 +267,7 @@
     <ClCompile Include="source\Utilities.cpp" />
     <ClCompile Include="source\Video.cpp" />
     <ClCompile Include="Source\VidHD.cpp" />
+    <ClCompile Include="source\VidHDSdhr.cpp" />
     <ClCompile Include="source\Windows\AppleWin.cpp" />
     <ClCompile Include="source\Windows\DirectInput.cpp" />
     <ClCompile Include="source\Windows\HookFilter.cpp" />
@@ -393,7 +396,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141_xp</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'" Label="Configuration">
@@ -412,7 +415,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141_xp</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>

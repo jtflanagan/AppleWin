@@ -274,6 +274,9 @@
     <ClCompile Include="source\MockingboardCardManager.cpp">
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
+    <ClCompile Include="source\VidHDSdhr.cpp">
+      <Filter>Source Files\Video</Filter>
+    </ClCompile>
     <ClCompile Include="source\Configuration\PageSDHR.cpp">
       <Filter>Source Files\Configuration</Filter>
     </ClCompile>
@@ -623,6 +626,12 @@
     </ClInclude>
     <ClInclude Include="source\MockingboardDefs.h">
       <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VidHDSdhr.h">
+      <Filter>Source Files\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="source\stb_image.h">
+      <Filter>Source Files\Video</Filter>
     </ClInclude>
     <ClInclude Include="source\Configuration\PageSDHR.h">
       <Filter>Source Files\Configuration</Filter>

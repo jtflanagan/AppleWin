@@ -61,6 +61,7 @@ enum VideoFlag_e
 	VF_PAGE3  = 0x00000200,		// Pseudo Page $60 (Poorman's heatmap)
 	VF_PAGE4  = 0x00000400,		// Pseudo Page $80 (Poorman's heatmap)
 	VF_PAGE5  = 0x00000800,		// Pseudo Page $A0 (Poorman's heatmap)
+	VF_SDHR   = 0x00001000,     // For VidHD's support for SDHR mode
 };
 
 enum AppleFont_e

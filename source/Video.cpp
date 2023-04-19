@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "RGBMonitor.h"
 #include "VidHD.h"
 #include "YamlHelper.h"
+#include "RemoteControl/RemoteControlManager.h"	// RIK
 
 #define  SW_80COL         (g_uVideoMode & VF_80COL)
 #define  SW_DHIRES        (g_uVideoMode & VF_DHIRES)
@@ -47,6 +48,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define  SW_PAGE2         (g_uVideoMode & VF_PAGE2)
 #define  SW_TEXT          (g_uVideoMode & VF_TEXT)
 #define  SW_SHR           (g_uVideoMode & VF_SHR)
+#define  SW_SDHR          (g_uVideoMode & VF_SDHR)
 
 //-------------------------------------
 
@@ -207,10 +209,20 @@ BYTE Video::VideoSetMode(WORD pc, WORD address, BYTE write, BYTE d, ULONG uExecu
 		case 0x5F: if (!IS_APPLE2) g_uVideoMode &= ~VF_DHIRES;  break;
 	}
 
-	if (vidHD && vidHD->IsSHR())
-		g_uVideoMode |= VF_SHR;
-	else
-		g_uVideoMode &= ~VF_SHR;
+	if (vidHD) {
+		if (vidHD->IsSDHR()) {
+			g_uVideoMode &= ~VF_SHR;
+			g_uVideoMode |= VF_SDHR;
+		}
+		else if (vidHD->IsSHR()) {
+			g_uVideoMode |= VF_SHR;
+			g_uVideoMode &= ~VF_SDHR;
+		}
+		else {
+			g_uVideoMode &= ~VF_SHR;
+			g_uVideoMode &= ~VF_SDHR;
+		}
+	}
 
 	if (!IS_APPLE2)
 		RGB_SetVideoMode(address);
@@ -668,6 +680,14 @@ void Video::Config_Load_Video()
 	REGLOAD_DEFAULT(TEXT(REGVALUE_VIDEO_REFRESH_RATE), &dwTmp, (DWORD)VR_60HZ);
 	SetVideoRefreshRate((VideoRefreshRate_e)dwTmp);
 
+	// RIK START
+	REGLOAD_DEFAULT(TEXT(REGVALUE_VIDEO_REMOTECONTROL), &dwTmp, (DWORD)false);
+	RemoteControlManager::setRemoteControlEnabled(dwTmp);
+	REGLOAD_DEFAULT(TEXT(REGVALUE_VIDEO_RC_TRACKONLY), &dwTmp, (DWORD)false);
+	RemoteControlManager::setTrackOnlyEnabled(dwTmp);
+	// RIK END
+
+
 	//
 
 	const UINT16* pOldVersion = GetOldAppleWinVersion();
@@ -713,6 +733,8 @@ void Video::Config_Save_Video()
 	REGSAVE(TEXT(REGVALUE_VIDEO_STYLE)     ,g_eVideoStyle);
 	REGSAVE(TEXT(REGVALUE_VIDEO_MONO_COLOR),g_nMonochromeRGB);
 	REGSAVE(TEXT(REGVALUE_VIDEO_REFRESH_RATE), GetVideoRefreshRate());
+	REGSAVE(TEXT(REGVALUE_VIDEO_REMOTECONTROL), RemoteControlManager::isRemoteControlEnabled());		// RIK
+	REGSAVE(TEXT(REGVALUE_VIDEO_RC_TRACKONLY), RemoteControlManager::isTrackOnlyEnabled());		// RIK
 }
 
 //===========================================================================

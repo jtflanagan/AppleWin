@@ -183,3 +183,4 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+/DirectXTK12-master/Src/Shaders/Compiled

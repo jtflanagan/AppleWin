@@ -53,16 +53,21 @@
 #include "Video.h"
 #include "VidHD.h"
 #include "YamlHelper.h"
+#include "../CardManager.h"
 
 void VidHDCard::Reset(const bool powerCycle)
 {
 	m_NEWVIDEO = 0;
-	GetVideo().SetVideoMode(GetVideo().GetVideoMode() & ~VF_SHR);
+	GetVideo().SetVideoMode(GetVideo().GetVideoMode() & ~(VF_SHR | VF_SDHR));
+	if (m_pVidHDSdhr) {
+		delete m_pVidHDSdhr;
+		m_pVidHDSdhr = NULL;
+	}
 }
 
 void VidHDCard::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-	RegisterIoHandler(m_slot, IO_Null, IO_Null, &VidHDCard::IORead, IO_Null, this, NULL);
+	RegisterIoHandler(m_slot, IO_Null, &VidHDCard::C0Write, &VidHDCard::IORead, IO_Null, this, NULL);
 }
 
 BYTE __stdcall VidHDCard::IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles)
@@ -75,6 +80,24 @@ BYTE __stdcall VidHDCard::IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, UL
 	case 2: return 0x4C;
 	}
 	return IO_Null(pc, addr, bWrite, value, nExecutedCycles);
+}
+
+BYTE __stdcall VidHDCard::C0Write(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles)
+{
+	LogFileOutput("C0Write: %d %d %d %d %d\n", pc, addr, bWrite, value, nExecutedCycles);
+
+	VidHDCard* vidHD = NULL;
+	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+	else
+		return 0;
+	switch (addr & 0x0f) {
+	case 0x00:
+		vidHD->ControlSDHR(value); break;
+	case 0x01:
+		vidHD->SDHRWriteByte(value); break;
+	}
+	return 0;
 }
 
 // NB. VidHD has no support for reading the IIgs video registers (from an earlier Apple II)
@@ -95,6 +118,55 @@ void VidHDCard::VideoIOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG 
 	case 0x29: m_NEWVIDEO = value;			break;
 	case 0x34: m_BORDERCOLOR = value;		break;
 	case 0x35: m_SHADOW = value;			break;
+	}
+}
+
+bool VidHDCard::IsSDHR() {
+	return m_pVidHDSdhr && m_pVidHDSdhr->IsSdhrEnabled();
+}
+
+void VidHDCard::SDHRWriteByte(BYTE value) {
+	if (m_pVidHDSdhr) {
+		m_pVidHDSdhr->SDHRWriteByte(value);
+	}
+}
+
+void VidHDCard::ControlSDHR(BYTE value) {
+	switch (value) {
+	case 0: {
+		// disable sdhr
+		LogFileOutput("ControlSDHR: off\n");
+		if (m_pVidHDSdhr) {
+			m_pVidHDSdhr->ToggleSDHR(false);
+			GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
+			delete m_pVidHDSdhr;
+			m_pVidHDSdhr = NULL;
+		}
+	} break;
+	case 1: {
+		// enable sdhr
+		LogFileOutput("ControlSDHR: on\n");
+		if (!m_pVidHDSdhr) {
+			m_pVidHDSdhr = new VidHDSdhr();
+		}
+		m_pVidHDSdhr->ToggleSDHR(true);
+		GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
+	} break;
+	case 2: {
+		// process commands
+		LogFileOutput("ControlSDHR: process commands\n");
+		if (m_pVidHDSdhr) {
+			m_pVidHDSdhr->ProcessCommands();
+		}
+	} break;
+	case 3: {
+		// reset
+		LogFileOutput("ControlSDHR: reset\n");
+		delete m_pVidHDSdhr;
+		m_pVidHDSdhr = NULL;
+		GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
+	}
+	default: break;
 	}
 }
 
@@ -171,6 +243,30 @@ void VidHDCard::UpdateSHRCell(bool is640Mode, bool isColorFillMode, uint16_t add
 		a >>= 8;
 	}
 }
+
+void VidHDCard::SDHRWritePixels(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress) {
+	if (!pVideoAddress) {
+		// can happen right at init, let it go till init completes
+		return;
+	}
+	if (!m_pVidHDSdhr) {
+		m_pVidHDSdhr = new VidHDSdhr();
+	}
+	//m_pVidHDSdhr->ProcessCommands();
+	for (UINT i = 0; i < 16; ++i) {
+		pVideoAddress[i] = m_pVidHDSdhr->GetPixel(vert, horz+i);
+	}
+}
+
+void VidHDCard::UpdateSDHRCell(uint16_t vert, uint16_t horz, bgra_t* pVideoAddress) {
+	VidHDCard* vidHD = NULL;
+	if (GetCardMgr().QuerySlot(SLOT3) == CT_VidHD)
+		vidHD = dynamic_cast<VidHDCard*>(GetCardMgr().GetObj(SLOT3));
+	else
+		return;
+	vidHD->SDHRWritePixels(vert, horz, pVideoAddress);
+}
+
 
 //===========================================================================
 

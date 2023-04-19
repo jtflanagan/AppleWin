@@ -28,8 +28,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	#include "Interface.h"  // GetFrameBuffer()
 	#include "RGBMonitor.h"
 	#include "VidHD.h"
+    #include "../CardManager.h"
 
 	#include "NTSC_CharSet.h"
+
 
 // Some reference material here from 2000:
 // http://www.kreativekorp.com/miscpages/a2info/munafo.shtml
@@ -102,9 +104,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	#define VIDEO_SCANNER_Y_MIXED   160 // num scanlins for mixed graphics + text
 	#define VIDEO_SCANNER_Y_DISPLAY 192 // max displayable scanlines
 	#define VIDEO_SCANNER_Y_DISPLAY_IIGS 200
+    #define VIDEO_SCANNER_Y_DISPLAY_SDHR 180 // 360 displayed at two scanlines per vertical clock
 
 	// These 3 vars are initialized in NTSC_VideoInit()
 	static bgra_t* g_pVideoAddress = 0;
+	static bgra_t* g_pVideoAddress2 = 0; // second line of video drawn out in SDHR
 	// To maintain the 280x192 aspect ratio for 560px width, we double every scan line -> 560x384
 	// NB. For IIgs SHR, the 320x200 is again doubled (to 640x400), but this gives a ~16:9 ratio, when 4:3 is probably required (ie. stretch height from 200 to 240)
 	static bgra_t* g_pScanLines[VIDEO_SCANNER_Y_DISPLAY_IIGS * 2];
@@ -349,6 +353,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	static void updateScreenText80RGB    ( long cycles6502 );
 	static void updateScreenDoubleHires80Simplified(long cycles6502);
 	static void updateScreenDoubleHires80RGB(long cycles6502);
+	static void updateScreenSDHR(long cycles6502);
 	static void updateScreenSHR(long cycles6502);
 
 //===========================================================================
@@ -744,6 +749,24 @@ inline void updateVideoScannerHorzEOL_SHR()
 	}
 }
 
+inline void updateVideoScannerHorzEOL_SDHR()
+{
+	if (VIDEO_SCANNER_MAX_HORZ == ++g_nVideoClockHorz)
+	{
+		g_nVideoClockHorz = 0;
+
+		if (++g_nVideoClockVert == g_videoScannerMaxVert)
+		{
+			g_nVideoClockVert = 0;
+		}
+
+		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR)
+		{
+			updateVideoScannerAddress();
+		}
+	}
+}
+
 //===========================================================================
 inline void updateVideoScannerAddress()
 {
@@ -753,6 +776,13 @@ inline void updateVideoScannerAddress()
 			g_nColorBurstPixels = 0;	// instantaneously kill color-burst!
 		else if (g_nVideoClockVert == 0 && (GetVideo().GetVideoMode() & VF_TEXT) == 0)
 			g_nColorBurstPixels = 1024;	// setup for line-0 (when TEXT is off), ie. so GetColorBurst() returns true below (GH#1119)
+	}
+
+	if (g_pFuncUpdateGraphicsScreen == updateScreenSDHR) {
+		// Draw lines on vertical clocks 0 through 180, two lines per clock, centered with 20 blank lines above and below
+		g_pVideoAddress = g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR ? g_pScanLines[2 * g_nVideoClockVert + 20] : g_pScanLines[0];
+		g_pVideoAddress2 = g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR ? g_pScanLines[2 * g_nVideoClockVert + 21] : g_pScanLines[0];
+		return;
 	}
 
 	if (g_pFuncUpdateGraphicsScreen == updateScreenSHR)
@@ -1844,11 +1874,31 @@ void updateScreenText80RGB(long cycles6502)
 	}
 }
 
+
 //===========================================================================
-void updateScreenSHR(long cycles6502)
+void updateScreenSDHR(long cycles6502)
 {
+	// since there are a maximum of 262 vertical scanlines, but we write out 360, we update two scanlines per line between 0 and 179
 	for (; cycles6502 > 0; --cycles6502)
 	{
+		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_SDHR) {
+			if (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_START) {
+				//LogFileOutput("screen %d %d %d\n", g_nVideoClockVert, g_nVideoClockHorz, g_pVideoAddress);
+				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert, 16*(g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START), g_pVideoAddress);
+				VidHDCard::UpdateSDHRCell(2 * g_nVideoClockVert + 1, 16*(g_nVideoClockHorz - VIDEO_SCANNER_HORZ_START), g_pVideoAddress2);
+				g_pVideoAddress += 16;
+				g_pVideoAddress2 += 16;
+			}
+		}
+		updateVideoScannerHorzEOL_SDHR();
+	}
+	return;
+}
+
+void updateScreenSHR(long cycles6502) {
+	for (; cycles6502 > 0; --cycles6502)
+	{
+
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY_IIGS)
 		{
 			uint16_t addr = getVideoScannerAddressSHR();
@@ -1976,6 +2026,14 @@ void NTSC_SetVideoMode( uint32_t uVideoModeFlags, bool bDelay/*=false*/ )
 {
 	g_uNewVideoModeFlags = uVideoModeFlags;
 
+	if (uVideoModeFlags & VF_SDHR) {
+		GetVideo().ClearFrameBuffer(); // SDHR can get screen residue from other modes
+		g_pFuncUpdateGraphicsScreen = updateScreenSDHR;
+		g_pFuncUpdateTextScreen = updateScreenSDHR;
+		updateVideoScannerAddress();
+		return;
+	}
+
 	if (uVideoModeFlags & VF_SHR)
 	{
 		g_pFuncUpdateGraphicsScreen = updateScreenSHR;
@@ -1986,6 +2044,10 @@ void NTSC_SetVideoMode( uint32_t uVideoModeFlags, bool bDelay/*=false*/ )
 	if (g_pFuncUpdateGraphicsScreen == updateScreenSHR && !(uVideoModeFlags & VF_SHR))
 	{
 		// Was SHR mode, so clear the framebuffer to remove any SHR residue in the borders
+		GetVideo().ClearFrameBuffer();
+	}
+	else if (g_pFuncUpdateGraphicsScreen == updateScreenSDHR && !(uVideoModeFlags & VF_SDHR)) {
+		// Was SDHR mode, so clear the framebuffer to remove any SDHR residue in the borders
 		GetVideo().ClearFrameBuffer();
 	}
 
@@ -2738,7 +2800,16 @@ UINT NTSC_GetCyclesUntilVBlank(int cycles)
 
 bool NTSC_GetVblBar(void)
 {
-	const UINT visibleScanLines = ((g_uNewVideoModeFlags & VF_SHR) == 0) ? VIDEO_SCANNER_Y_DISPLAY : VIDEO_SCANNER_Y_DISPLAY_IIGS;
+	UINT visibleScanLines;
+	if (g_uNewVideoModeFlags & VF_SDHR) {
+		visibleScanLines = VIDEO_SCANNER_Y_DISPLAY_IIGS;
+	}
+	else if (g_uNewVideoModeFlags & VF_SHR) {
+		visibleScanLines = VIDEO_SCANNER_Y_DISPLAY_IIGS;
+	}
+	else {
+		visibleScanLines = VIDEO_SCANNER_Y_DISPLAY;
+	}
 	return g_nVideoClockVert < visibleScanLines;
 }
 
@@ -2752,6 +2823,17 @@ uint16_t NTSC_GetScannerAddressAndData(uint32_t& data, int& dataSize)
 {
 	if (g_uNewVideoModeFlags & VF_SHR)
 	{
+		uint16_t addr = getVideoScannerAddressSHR();
+		uint32_t* pAux = (uint32_t*)MemGetAuxPtr(addr);	// 8 pixels (320 mode) / 16 pixels (640 mode)
+		data = pAux[0];
+		dataSize = 4;
+		return addr;
+	}
+
+	if (g_uNewVideoModeFlags & VF_SDHR) {
+		// TODO: this isn't even remotely right, but the SDHR source data does not live in 
+		// the Apple address space at all.  No idea how to point the debugger at where the source
+		// data is inside of the VidHDSdhr object.
 		uint16_t addr = getVideoScannerAddressSHR();
 		uint32_t* pAux = (uint32_t*)MemGetAuxPtr(addr);	// 8 pixels (320 mode) / 16 pixels (640 mode)
 		data = pAux[0];
