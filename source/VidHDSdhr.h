@@ -16,8 +16,13 @@ public:
 		m_pSDHRNetworker = new SDHRNetworker;
 	}
 	~VidHDSdhr();
+	void NetworkEnable();
+	void NetworkDisable();
+	void NetworkReset();
+
 	void ToggleSDHR(bool value) {
 		m_bEnabled = value;
+		m_bEnabled ? NetworkEnable() : NetworkDisable();
 	}
 
 	bool IsSdhrEnabled(void) {
@@ -27,6 +32,8 @@ public:
 	void SDHRWriteByte(BYTE byte);
 
 	bool ProcessCommands(void);
+
+
 
 	bgra_t GetPixel(uint16_t vert, uint16_t horz);
 

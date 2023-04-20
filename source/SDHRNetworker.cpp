@@ -5,9 +5,25 @@
 #include "Interface.h"
 #include "Configuration/IPropertySheet.h"
 #include "Registry.h"
+#include "Log.h"
 
 constexpr uint16_t cxSDHR_ctrl = 0xC0B0;	// SDHR command
 constexpr uint16_t cxSDHR_data = 0xC0B1;	// SDHR data
+
+SDHRNetworker::SDHRNetworker()
+{
+	if (IsEnabled())
+	{
+		Connect();
+		BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_RESET);
+	}
+}
+
+SDHRNetworker::~SDHRNetworker()
+{
+	Disconnect();
+	client_socket = NULL;
+}
 
 bool SDHRNetworker::IsEnabled()
 {
@@ -104,6 +120,7 @@ void SDHRNetworker::BusDataCommandStream(BYTE* data, int length)
 	// Send a bunch of SDHR_STREAM_CHUNK
 	// and the remaining packets individually
 
+	LogFileOutput("SDHRNetworker::BusDataCommandStream: %d %d \n", data, length);
 	int numBlocks = length / SDHR_STREAM_CHUNK;
 	for (size_t b = 0; b < numBlocks; b++)
 	{
@@ -129,6 +146,7 @@ void SDHRNetworker::BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int 
 	// Send a bunch of SDHR_STREAM_CHUNK
 // and the remaining packets individually
 
+	LogFileOutput("SDHRNetworker::BusDataMemoryStream: %d %d %d \n", memPtr, source_address, length);
 	int numBlocks = length / SDHR_STREAM_CHUNK;
 	int offset = 0;
 	for (size_t b = 0; b < numBlocks; b++)
@@ -144,7 +162,7 @@ void SDHRNetworker::BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int 
 	int remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
 	for (size_t i = 0; i < remainingPackets; i++)
 	{
-		s_packet.addr = source_address + offset;;
+		s_packet.addr = source_address + offset;
 		s_packet.data = *(memPtr + offset);
 		++offset;
 		send(client_socket, (char*)&s_packet, sizeof(BusPacket), 0);

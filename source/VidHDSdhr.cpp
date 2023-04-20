@@ -8,9 +8,6 @@
 #include <fstream>
 #include <sstream>
 
-
-
-
 enum ShdrCmd_e {
 	SDHR_CMD_UPLOAD_DATA = 1,
 	SDHR_CMD_DEFINE_IMAGE_ASSET = 2,
@@ -119,6 +116,7 @@ struct UpdateWindowEnableCmd {
 #pragma pack(pop)
 
 VidHDSdhr::~VidHDSdhr() {
+	NetworkDisable();
 	for (uint16_t i = 0; i < 256; ++i) {
 		if (image_assets[i].data) {
 			stbi_image_free(image_assets[i].data);
@@ -248,6 +246,12 @@ int upload_inflate(const char* source, uint64_t size, std::ostream& dest) {
 
 void VidHDSdhr::SDHRWriteByte(BYTE value) {
 	command_buffer.push_back((uint8_t)value);
+	// Could do this on a byte-by-byte basis
+	// But instead we batch it in ProcessCommands()
+	/*
+	if (m_pSDHRNetworker->IsEnabled())
+		m_pSDHRNetworker->BusDataPacket(value);
+	*/
 }
 
 
@@ -315,9 +319,11 @@ bool VidHDSdhr::ProcessCommands() {
 
 	bool isSdhrNetworked = m_pSDHRNetworker->IsEnabled();
 	if (isSdhrNetworked)
+	{
 		if (!m_pSDHRNetworker->IsConnected())
 			m_pSDHRNetworker->Connect();
-	isSdhrNetworked = m_pSDHRNetworker->IsConnected();
+		isSdhrNetworked = m_pSDHRNetworker->IsConnected();
+	}
 
 	BYTE* begin = &command_buffer[0];
 	BYTE* end = begin + command_buffer.size();
@@ -570,6 +576,8 @@ bool VidHDSdhr::ProcessCommands() {
 			m_pSDHRNetworker->BusDataCommandStream(p - message_length, message_length);
 	}
 	if (p == end) {
+		if (isSdhrNetworked)
+			m_pSDHRNetworker->BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_PROCESS);
 		// rubber meets the road, draw the windows to the screen
 		for (uint16_t window_index = 0; window_index < 256; ++window_index) {
 			Window* w = windows + window_index;
@@ -616,4 +624,30 @@ bool VidHDSdhr::ProcessCommands() {
 		CommandError("misaligned on command buffer");
 	}
 	return false;
+}
+
+void VidHDSdhr::NetworkEnable() {
+	if (m_pSDHRNetworker->IsEnabled())
+		if (!m_pSDHRNetworker->IsConnected())
+			m_pSDHRNetworker->Connect();
+	if (m_pSDHRNetworker->IsConnected())
+		m_pSDHRNetworker->BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_ENABLE);
+}
+
+void VidHDSdhr::NetworkDisable()
+{
+	if (m_pSDHRNetworker->IsConnected())
+	{
+		m_pSDHRNetworker->BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_DISABLE);
+		m_pSDHRNetworker->Disconnect();
+	}
+}
+
+void VidHDSdhr::NetworkReset()
+{
+	if (m_pSDHRNetworker->IsEnabled())
+		if (!m_pSDHRNetworker->IsConnected())
+			m_pSDHRNetworker->Connect();
+	if (m_pSDHRNetworker->IsConnected())
+		m_pSDHRNetworker->BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_RESET);
 }

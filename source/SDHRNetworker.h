@@ -26,6 +26,14 @@ struct BusStream {
 
 #pragma pack(pop)
 
+enum SDHRCtrl_e
+{
+	SDHR_CTRL_DISABLE = 0,
+	SDHR_CTRL_ENABLE,
+	SDHR_CTRL_PROCESS,
+	SDHR_CTRL_RESET
+};
+
 /**
  * @brief Class that sends Apple 2 bus packets to the network
  * It only sends packets that matter to the SDHR server on the other side:
@@ -38,9 +46,12 @@ struct BusStream {
 class SDHRNetworker
 {
 public:
+	SDHRNetworker();
+	~SDHRNetworker();
 	bool IsEnabled();
 	bool Connect();
 	bool Connect(std::string server_ip, int server_port);
+	void Disconnect();
 	bool IsConnected() { return bIsConnected; };
 	void BusCtrlPacket(BYTE command);
 	void BusDataPacket(BYTE data);
@@ -52,9 +63,6 @@ private:
 	BusStream s_stream = { 0 };
 	SOCKET client_socket = NULL;
 	sockaddr_in server_addr = { 0 };
-	bool bIsEnabled = false;
 	bool bIsConnected = false;
-
-	void Disconnect();
 };
 
