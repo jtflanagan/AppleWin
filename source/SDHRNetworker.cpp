@@ -121,7 +121,7 @@ void SDHRNetworker::BusDataCommandStream(BYTE* data, int length)
 	// and the remaining packets individually
 
 	LogFileOutput("SDHRNetworker::BusDataCommandStream: %d %d \n", data, length);
-	int numBlocks = length / SDHR_STREAM_CHUNK;
+	size_t numBlocks = length / SDHR_STREAM_CHUNK;
 	for (size_t b = 0; b < numBlocks; b++)
 	{
 		for (size_t i = 0; i < SDHR_STREAM_CHUNK; i++)
@@ -132,7 +132,7 @@ void SDHRNetworker::BusDataCommandStream(BYTE* data, int length)
 		send(client_socket, (char*)&s_stream, sizeof(BusStream), 0);
 		data += SDHR_STREAM_CHUNK;
 	}
-	int remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
+	size_t remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
 	s_packet.addr = cxSDHR_data;
 	for (size_t i = 0; i < remainingPackets; i++)
 	{
@@ -147,8 +147,8 @@ void SDHRNetworker::BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int 
 // and the remaining packets individually
 
 	LogFileOutput("SDHRNetworker::BusDataMemoryStream: %d %d %d \n", memPtr, source_address, length);
-	int numBlocks = length / SDHR_STREAM_CHUNK;
-	int offset = 0;
+	size_t numBlocks = length / SDHR_STREAM_CHUNK;
+	size_t offset = 0;
 	for (size_t b = 0; b < numBlocks; b++)
 	{
 		for (size_t i = 0; i < SDHR_STREAM_CHUNK; i++)
@@ -159,7 +159,7 @@ void SDHRNetworker::BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int 
 		}
 		send(client_socket, (char*)&s_stream, sizeof(BusPacket) * SDHR_STREAM_CHUNK, 0);
 	}
-	int remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
+	size_t remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
 	for (size_t i = 0; i < remainingPackets; i++)
 	{
 		s_packet.addr = source_address + offset;
