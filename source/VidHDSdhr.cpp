@@ -258,6 +258,7 @@ void VidHDSdhr::SDHRWriteByte(BYTE value) {
 void VidHDSdhr::CommandError(const char* err) {
 	strcpy(error_str, err);
 	error_flag = true;
+	OutputDebugStringA(error_str);
 }
 
 bool VidHDSdhr::CheckCommandLength(BYTE* p, BYTE* e, size_t sz) {
