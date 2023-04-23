@@ -331,6 +331,7 @@ bool VidHDSdhr::ProcessCommands() {
 	BYTE* p = begin;
 
 	while (p < end) {
+		DBGPRINT(L"PROCESSING COMMAND %d, actual length: %d, stated length: %d\n", p[2], (size_t)(end - p), *((uint16_t*)p));
 		if (!CheckCommandLength(p, end, 2)) {
 			return false;
 		}
