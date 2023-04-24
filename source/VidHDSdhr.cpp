@@ -110,7 +110,7 @@ struct UpdateWindowAdjustWindowViewCommand {
 
 struct UpdateWindowEnableCmd {
 	uint8_t window_index;
-	bool enabled;
+	uint8_t enabled;
 };
 
 #pragma pack(pop)
@@ -329,6 +329,7 @@ bool VidHDSdhr::ProcessCommands() {
 	BYTE* begin = &command_buffer[0];
 	BYTE* end = begin + command_buffer.size();
 	BYTE* p = begin;
+	BYTE* p_start = p;	// p value at the beginning of the command
 
 	while (p < end) {
 		DBGPRINT(L"PROCESSING COMMAND %d, actual length: %d, stated length: %d\n", p[2], (size_t)(end - p), *((uint16_t*)p));
@@ -337,6 +338,7 @@ bool VidHDSdhr::ProcessCommands() {
 		}
 		uint16_t message_length = *((uint16_t*)p);
 		if (!CheckCommandLength(p, end, message_length)) return false;
+		p_start = p;
 		p += 2;
 		BYTE cmd = *p++;
 
@@ -459,6 +461,11 @@ bool VidHDSdhr::ProcessCommands() {
 				r->tilesets[i] = tileset_index;
 				r->tile_indexes[i] = tile_index;
 			}
+			// WARNING:
+			// This command is unique in that it has variable sized data appended to it
+			// Let's cheat here and move p forward by the data size. It'll be moved by the command
+			// size at the end of the switch
+			p += cmd->data_length;
 		} break;
 		case SDHR_CMD_UPDATE_WINDOW_SET_UPLOAD: {
 			LogFileOutput("UpdateWindowSetUpload\n");
@@ -575,7 +582,7 @@ bool VidHDSdhr::ProcessCommands() {
 		}
 		p += message_length - 3;
 		if (isSdhrNetworked)
-			m_pSDHRNetworker->BusDataCommandStream(p - message_length, message_length);
+			m_pSDHRNetworker->BusDataCommandStream(p_start, p - p_start);
 	}
 	if (p == end) {
 		if (isSdhrNetworked)
