@@ -63,10 +63,10 @@ struct DefineTilesetCmd {
 
 struct DefineTilesetImmediateCmd {
 	uint8_t tileset_index;
+	uint8_t asset_index;
 	uint8_t num_entries;
 	uint8_t xdim;
 	uint8_t ydim;
-	uint8_t asset_index;
 	uint8_t data[];  // data is 4-byte records, 16-bit x and y offsets (scaled by x/ydim), from the given asset
 };
 
@@ -394,7 +394,7 @@ bool VidHDSdhr::ProcessCommands() {
 			}
 			uint64_t load_data_size;
 			load_data_size = (uint64_t)num_entries * 4;
-			if (message_length != sizeof(DefineTilesetImmediateCmd) + load_data_size) {
+			if (message_length != sizeof(DefineTilesetImmediateCmd) + load_data_size + 3) {	// 3 is cmd_len and cmd_id
 				CommandError("DefineTilesetImmediate data size mismatch");
 				return false;
 			}
@@ -452,12 +452,13 @@ bool VidHDSdhr::ProcessCommands() {
 			for (uint64_t i = 0; i < cmd->data_length / 2; ++i) {
 				uint8_t tileset_index = sp[i * 2];
 				uint8_t tile_index = sp[i * 2 + 1];
+/*
 				if (tileset_records[tileset_index].xdim != r->tile_xdim ||
 					tileset_records[tileset_index].ydim != r->tile_ydim ||
 					tileset_records[tileset_index].num_entries <= tile_index) {
 					CommandError("invalid tile specification");
 					return false;
-				}
+				}*/
 				r->tilesets[i] = tileset_index;
 				r->tile_indexes[i] = tile_index;
 			}
@@ -588,6 +589,7 @@ bool VidHDSdhr::ProcessCommands() {
 		if (isSdhrNetworked)
 			m_pSDHRNetworker->BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_PROCESS);
 		// rubber meets the road, draw the windows to the screen
+		/*
 		for (uint16_t window_index = 0; window_index < 256; ++window_index) {
 			Window* w = windows + window_index;
 			if (!w->enabled) {
@@ -627,6 +629,7 @@ bool VidHDSdhr::ProcessCommands() {
 				}
 			}
 		}
+		*/
 		command_buffer.clear();
 	}
 	else {
