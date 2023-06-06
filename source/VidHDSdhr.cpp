@@ -25,6 +25,9 @@ enum ShdrCmd_e {
 	SDHR_CMD_READY = 14,
 	SDHR_CMD_UPLOAD_DATA_FILENAME = 15,
 	SDHR_CMD_UPDATE_WINDOW_SET_UPLOAD = 16,
+
+	SDHR_CMD_CHANGE_RESOLUTION = 50,
+	SDHR_CMD_UPDATE_WINDOW_SET_SIZE = 51,
 };
 #pragma pack(push)
 #pragma pack(1)
@@ -106,6 +109,12 @@ struct UpdateWindowAdjustWindowViewCommand {
 	uint8_t window_index;
 	int32_t tile_xbegin;
 	int32_t tile_ybegin;
+};
+
+struct UpdateWindowSetWindowSizeCommand {
+	uint8_t window_index;
+	uint16_t screen_xcount;		// width in pixels of visible screen area of window
+	uint16_t screen_ycount;
 };
 
 struct UpdateWindowEnableCmd {
@@ -406,6 +415,7 @@ bool VidHDSdhr::ProcessCommands() {
 			if (!CheckCommandLength(p, end, sizeof(DefineWindowCmd))) return false;
 			DefineWindowCmd* cmd = (DefineWindowCmd*)p;
 			Window* r = windows + cmd->window_index;
+/*
 			if (r->screen_xcount > screen_xcount) {
 				CommandError("Window exceeds max x resolution");
 				return false;
@@ -414,6 +424,7 @@ bool VidHDSdhr::ProcessCommands() {
 				CommandError("Window exceeds max y resolution");
 				return false;
 			}
+*/
 			r->enabled = false;
 			r->screen_xcount = cmd->screen_xcount;
 			r->screen_ycount = cmd->screen_ycount;
@@ -576,6 +587,17 @@ bool VidHDSdhr::ProcessCommands() {
 				return false;
 			}
 			r->enabled = cmd->enabled;
+		} break;
+		case SDHR_CMD_UPDATE_WINDOW_SET_SIZE: {
+			LogFileOutput("UpdateWindowSetWindowSize\n");
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowSetWindowSizeCommand))) return false;
+			UpdateWindowSetWindowSizeCommand* cmd = (UpdateWindowSetWindowSizeCommand*)p;
+			Window* r = windows + cmd->window_index;
+			r->screen_xcount = cmd->screen_xcount;
+			r->screen_ycount = cmd->screen_ycount;
+		} break;
+		case SDHR_CMD_CHANGE_RESOLUTION: {
+			LogFileOutput("ChangeResolution\n");
 		} break;
 		default:
 			CommandError("unrecognized command");
