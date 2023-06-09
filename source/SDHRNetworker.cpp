@@ -6,6 +6,7 @@
 #include "Configuration/IPropertySheet.h"
 #include "Registry.h"
 #include "Log.h"
+#include <iostream>
 
 constexpr uint16_t cxSDHR_ctrl = 0xC0B0;	// SDHR command
 constexpr uint16_t cxSDHR_data = 0xC0B1;	// SDHR data
@@ -84,7 +85,7 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 		return bIsConnected;
 	}
 	if (connect(client_socket, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
-		throw std::runtime_error("Error connecting to server: " + WSAGetLastError());
+		std::cerr << std::dec << "Error connecting to server: " + WSAGetLastError() << std::endl;
 		closesocket(client_socket);
 		WSACleanup();
 		bIsConnected = false;
