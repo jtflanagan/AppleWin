@@ -61,7 +61,7 @@ void VidHDCard::Reset(const bool powerCycle)
 	GetVideo().SetVideoMode(GetVideo().GetVideoMode() & ~(VF_SHR | VF_SDHR));
 	if (m_pVidHDSdhr) {
 		delete m_pVidHDSdhr;
-		m_pVidHDSdhr = NULL;
+		m_pVidHDSdhr = new VidHDSdhr();
 	}
 }
 
@@ -139,8 +139,6 @@ void VidHDCard::ControlSDHR(BYTE value) {
 		if (m_pVidHDSdhr) {
 			m_pVidHDSdhr->ToggleSDHR(false);
 			GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
-			delete m_pVidHDSdhr;
-			m_pVidHDSdhr = NULL;
 		}
 	} break;
 	case 1: {
@@ -163,7 +161,7 @@ void VidHDCard::ControlSDHR(BYTE value) {
 		// reset
 		LogFileOutput("ControlSDHR: reset\n");
 		delete m_pVidHDSdhr;
-		m_pVidHDSdhr = NULL;
+		m_pVidHDSdhr = new VidHDSdhr();
 		GetVideo().VideoSetMode(0, 0xff, 0, 0, 0);
 	}
 	default: break;

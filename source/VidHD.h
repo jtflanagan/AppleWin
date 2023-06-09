@@ -20,7 +20,7 @@ public:
 		m_NEWVIDEO = 0;
 		m_BORDERCOLOR = 0;
 		m_SHADOW = 0;
-		m_pVidHDSdhr = NULL;
+		m_pVidHDSdhr = new VidHDSdhr();
 
 		GetVideo().SetVidHD(true);
 	}

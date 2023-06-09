@@ -40,6 +40,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debugger/Debug.h"
 #include "../resource/resource.h"
+#include "VidHD.h"
 
 /*
 Memory map (for slot 7):
@@ -521,6 +522,18 @@ BYTE __stdcall HarddiskInterfaceCard::IORead(WORD pc, WORD addr, BYTE bWrite, BY
 										breakpointHit = DebuggerCheckMemBreakpoints(dstAddr, size, true);	// GH#1103
 
 									memcpy(page + (dstAddr & 0xff), pSrc, size);
+
+									// Send through the network all the DMA data in optimal chunks
+									if (g_sdhrNetworker != nullptr)
+										g_sdhrNetworker->BusDataMemoryStream(pSrc, dstAddr, size);
+/*
+									// Same as above but 1 byte at a time
+									for (size_t i = 0; i < size; i++)
+									{
+										if (g_sdhrNetworker != nullptr)
+											g_sdhrNetworker->BusMemoryPacket(dstAddr + i, *(pSrc + i));
+									}
+*/
 									pSrc += size;
 									dstAddr = (dstAddr + size) & (MEMORY_LENGTH-1);	// wraps at 64KiB boundary
 

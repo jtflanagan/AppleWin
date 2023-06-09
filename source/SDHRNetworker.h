@@ -55,6 +55,7 @@ public:
 	bool IsConnected() { return bIsConnected; };
 	void BusCtrlPacket(BYTE command);
 	void BusDataPacket(BYTE data);
+	void BusMemoryPacket(BYTE data, WORD addr);
 	void BusDataCommandStream(BYTE* data, int length);
 	void BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int length);
 

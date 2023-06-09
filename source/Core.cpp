@@ -79,6 +79,8 @@ int			g_nMemoryClearType = MIP_FF_FF_00_00; // Note: -1 = random MIP in Memory.c
 
 SynchronousEventManager g_SynchronousEventMgr;
 
+SDHRNetworker* g_sdhrNetworker = nullptr;
+
 HANDLE		g_hCustomRomF8 = INVALID_HANDLE_VALUE;	// Cmd-line specified custom F8 ROM at $F800..$FFFF
 bool	    g_bCustomRomF8Failed = false;			// Set if custom F8 ROM file failed
 HANDLE		g_hCustomRom = INVALID_HANDLE_VALUE;	// Cmd-line specified custom ROM at $C000..$FFFF(16KiB) or $D000..$FFFF(12KiB)

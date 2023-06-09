@@ -934,6 +934,18 @@ BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value
 	}
 }
 
+BYTE __stdcall MEM_WRITE_CALLBACK(WORD address, BYTE value)
+{
+	if (address >= 0x400 && address < 0xC000)
+	{
+		if (g_sdhrNetworker != nullptr)
+		{
+			g_sdhrNetworker->BusMemoryPacket(value, address);
+		}
+	}
+	return 0;
+}
+
 //===========================================================================
 
 static struct SlotInfo

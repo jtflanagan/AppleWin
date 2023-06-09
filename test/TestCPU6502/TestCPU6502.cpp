@@ -1351,3 +1351,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	return 0;
 }
+
+BYTE __stdcall MEM_WRITE_CALLBACK(WORD address, BYTE value)
+{
+	return 0;
+}

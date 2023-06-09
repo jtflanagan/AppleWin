@@ -2,6 +2,7 @@
 #include "Memory.h"
 #include "Video.h"
 #include "SDHRNetworker.h"
+#include "Core.h"
 
 class VidHDSdhr
 {
@@ -14,6 +15,7 @@ public:
 		memset(tileset_records, sizeof(tileset_records), 0);
 		memset(windows, sizeof(windows), 0);
 		m_pSDHRNetworker = new SDHRNetworker;
+		g_sdhrNetworker = m_pSDHRNetworker;	// make it global
 	}
 	~VidHDSdhr();
 	void NetworkEnable();

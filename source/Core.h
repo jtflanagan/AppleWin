@@ -4,6 +4,7 @@
 #include "Common.h"
 #include "StrFormat.h"
 #include "Log.h"
+#include "SDHRNetworker.h"
 
 void LogFileTimeUntilFirstKeyReadReset(void);
 void LogFileTimeUntilFirstKeyRead(void);
@@ -53,6 +54,8 @@ extern int        g_nMemoryClearType;					// Cmd line switch: use specific MIP (
 
 extern class CardManager& GetCardMgr(void);
 extern class SynchronousEventManager g_SynchronousEventMgr;
+
+extern SDHRNetworker* g_sdhrNetworker;
 
 extern HANDLE	g_hCustomRomF8;			// INVALID_HANDLE_VALUE if no custom F8 rom
 extern bool	    g_bCustomRomF8Failed;	// Set if custom F8 ROM file failed

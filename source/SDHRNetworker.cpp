@@ -110,6 +110,13 @@ void SDHRNetworker::BusDataPacket(BYTE data)
 	send(client_socket, (char*)&s_packet, 4, 0);
 }
 
+void SDHRNetworker::BusMemoryPacket(BYTE data, WORD addr)
+{
+	s_packet.addr = addr;
+	s_packet.data = data;
+	send(client_socket, (char*)&s_packet, 4, 0);
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Streams
 //////////////////////////////////////////////////////////////////////////

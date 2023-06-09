@@ -673,7 +673,6 @@ void VidHDSdhr::NetworkDisable()
 	if (m_pSDHRNetworker->IsConnected())
 	{
 		m_pSDHRNetworker->BusCtrlPacket(SDHRCtrl_e::SDHR_CTRL_DISABLE);
-		m_pSDHRNetworker->Disconnect();
 	}
 }
 
