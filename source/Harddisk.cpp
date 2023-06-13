@@ -524,7 +524,7 @@ BYTE __stdcall HarddiskInterfaceCard::IORead(WORD pc, WORD addr, BYTE bWrite, BY
 									memcpy(page + (dstAddr & 0xff), pSrc, size);
 
 									// Send through the network all the DMA data in optimal chunks
-									if (dstAddr >= 0x400 && dstAddr < 0xC000)
+									if (dstAddr >= 0x200 && dstAddr < 0xC000)
 									{
 										if (g_sdhrNetworker != nullptr)
 											g_sdhrNetworker->BusDataMemoryStream(pSrc, dstAddr, size);
