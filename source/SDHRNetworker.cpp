@@ -8,8 +8,8 @@
 #include "Log.h"
 #include <iostream>
 
-constexpr uint16_t cxSDHR_ctrl = 0xC0B0;	// SDHR command
-constexpr uint16_t cxSDHR_data = 0xC0B1;	// SDHR data
+constexpr uint16_t cxSDHR_ctrl = 0xC0A0;	// SDHR command
+constexpr uint16_t cxSDHR_data = 0xC0A1;	// SDHR data
 
 SDHRNetworker::SDHRNetworker()
 {
@@ -77,7 +77,7 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 		return bIsConnected;
 	}
 
-	client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	client_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (client_socket == INVALID_SOCKET) {
 		throw std::runtime_error("Error creating socket: " + WSAGetLastError());
 		WSACleanup();
@@ -93,59 +93,104 @@ bool SDHRNetworker::Connect(std::string server_ip, int server_port)
 	}
 	bIsConnected = true;
 
-	s_packet.pad = 0;
 	return bIsConnected;
 }
 
+// Individual updates are done simply (but inefficiently), using an entire 8-event packet
+// to represent a single write event, and then 7 bytes of dummy reads from 0x0000
+
 void SDHRNetworker::BusCtrlPacket(BYTE command)
 {
-	s_packet.addr = cxSDHR_ctrl;
-	s_packet.data = command;
-	send(client_socket, (char*)&s_packet, 4, 0);
+	++next_seqno;
+	s_packet.seqno[0] = next_seqno & 0xff;
+	s_packet.seqno[1] = (next_seqno >> 8) & 0xff;
+	s_packet.seqno[2] = (next_seqno >> 16) & 0xff;
+	s_packet.seqno[3] = (next_seqno >> 24) & 0xff;
+	s_packet.cmdtype = 0;
+	s_packet.rwflags = 0xfe;
+	s_packet.seqflags = 0xff;
+	memset(s_packet.data, 0, sizeof(s_packet.data));
+	s_packet.data[0] = command;
+	memset(s_packet.addrs, 0, sizeof(s_packet.addrs));
+	s_packet.addrs[0] = cxSDHR_ctrl & 0xff;
+	s_packet.addrs[1] = (cxSDHR_ctrl >> 8) & 0xff;
+	send(client_socket, (char*)&s_packet, sizeof(s_packet), 0);
 }
 
 void SDHRNetworker::BusDataPacket(BYTE data)
 {
-	s_packet.addr = cxSDHR_data;
-	s_packet.data = data;
-	send(client_socket, (char*)&s_packet, 4, 0);
+	++next_seqno;
+	s_packet.seqno[0] = next_seqno & 0xff;
+	s_packet.seqno[1] = (next_seqno >> 8) & 0xff;
+	s_packet.seqno[2] = (next_seqno >> 16) & 0xff;
+	s_packet.seqno[3] = (next_seqno >> 24) & 0xff;
+	s_packet.cmdtype = 0;
+	s_packet.rwflags = 0xfe;
+	s_packet.seqflags = 0xff;
+	memset(s_packet.data, 0, sizeof(s_packet.data));
+	s_packet.data[0] = data;
+	memset(s_packet.addrs, 0, sizeof(s_packet.addrs));
+	s_packet.addrs[0] = cxSDHR_data & 0xff;
+	s_packet.addrs[1] = (cxSDHR_data >> 8) & 0xff;
+
+	send(client_socket, (char*)&s_packet, sizeof(s_packet), 0);
 }
 
 void SDHRNetworker::BusMemoryPacket(BYTE data, WORD addr)
 {
-	s_packet.addr = addr;
-	s_packet.data = data;
-	send(client_socket, (char*)&s_packet, 4, 0);
+	++next_seqno;
+	s_packet.seqno[0] = next_seqno & 0xff;
+	s_packet.seqno[1] = (next_seqno >> 8) & 0xff;
+	s_packet.seqno[2] = (next_seqno >> 16) & 0xff;
+	s_packet.seqno[3] = (next_seqno >> 24) & 0xff;
+	s_packet.cmdtype = 0;
+	s_packet.rwflags = 0xfe;
+	s_packet.seqflags = 0xff;
+	memset(s_packet.data, 0, sizeof(s_packet.data));
+	s_packet.data[0] = data;
+	memset(s_packet.addrs, 0, sizeof(s_packet.addrs));
+	s_packet.addrs[0] = addr & 0xff;
+	s_packet.addrs[1] = (addr >> 8) & 0xff;
+	send(client_socket, (char*)&s_packet, sizeof(s_packet), 0);
 }
 
 //////////////////////////////////////////////////////////////////////////
 // Streams
 //////////////////////////////////////////////////////////////////////////
 
-
 void SDHRNetworker::BusDataCommandStream(BYTE* data, int length)
 {
-	// Send a bunch of SDHR_STREAM_CHUNK
-	// and the remaining packets individually
+	// chunk up the updates in packets of 8, with dummy reads
+	// at the end, if there are leftover slots in the last packet
 
 	LogFileOutput("SDHRNetworker::BusDataCommandStream: %d %d \n", data, length);
-	size_t numBlocks = length / SDHR_STREAM_CHUNK;
+	size_t numBlocks = (length + 7) / 8;
 	for (size_t b = 0; b < numBlocks; b++)
 	{
-		for (size_t i = 0; i < SDHR_STREAM_CHUNK; i++)
+		++next_seqno;
+		s_packet.seqno[0] = next_seqno & 0xff;
+		s_packet.seqno[1] = (next_seqno >> 8) & 0xff;
+		s_packet.seqno[2] = (next_seqno >> 16) & 0xff;
+		s_packet.seqno[3] = (next_seqno >> 24) & 0xff;
+		s_packet.cmdtype = 0;
+		s_packet.rwflags = 0;
+		s_packet.seqflags = 0xff;
+		for (size_t i = 0; i < 8; i++)
 		{
-			s_stream.packets[i].addr = cxSDHR_data;
-			s_stream.packets[i].data = *(data + i);
+			if ((int)(b * 8 + i) < length) {
+				s_packet.data[i] = data[b * 8 + i];
+				s_packet.rwflags |= 0 << i;
+				s_packet.addrs[i * 2] = cxSDHR_data & 0xff;
+				s_packet.addrs[i * 2 + 1] = (cxSDHR_data >> 8) & 0xff;
+			}
+			else {
+				s_packet.data[i] = 0;
+				s_packet.rwflags |= 1 << i;
+				s_packet.addrs[i * 2] = 0;
+				s_packet.addrs[i * 2 + 1] = 0;
+			}
 		}
-		send(client_socket, (char*)&s_stream, sizeof(BusStream), 0);
-		data += SDHR_STREAM_CHUNK;
-	}
-	size_t remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
-	s_packet.addr = cxSDHR_data;
-	for (size_t i = 0; i < remainingPackets; i++)
-	{
-		s_packet.data = *(data + i);
-		send(client_socket, (char*)&s_packet, sizeof(BusPacket), 0);
+		send(client_socket, (char*)&s_packet, sizeof(s_packet), 0);
 	}
 }
 
@@ -155,24 +200,32 @@ void SDHRNetworker::BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int 
 // and the remaining packets individually
 
 	LogFileOutput("SDHRNetworker::BusDataMemoryStream: %d %d %d \n", memPtr, source_address, length);
-	size_t numBlocks = length / SDHR_STREAM_CHUNK;
-	size_t offset = 0;
+	size_t numBlocks = (length + 7) / 8;
 	for (size_t b = 0; b < numBlocks; b++)
 	{
-		for (size_t i = 0; i < SDHR_STREAM_CHUNK; i++)
+		++next_seqno;
+		s_packet.seqno[0] = next_seqno & 0xff;
+		s_packet.seqno[1] = (next_seqno >> 8) & 0xff;
+		s_packet.seqno[2] = (next_seqno >> 16) & 0xff;
+		s_packet.seqno[3] = (next_seqno >> 24) & 0xff;
+		s_packet.cmdtype = 0;
+		s_packet.rwflags = 0;
+		s_packet.seqflags = 0xff;
+		for (size_t i = 0; i < 8; i++)
 		{
-			s_stream.packets[i].addr = source_address + offset;
-			s_stream.packets[i].data = *(memPtr + offset);
-			++offset;
+			if ((int)(b * 8 + i) < length) {
+				s_packet.data[i] = memPtr[b * 8 + i];
+				s_packet.rwflags |= 0 << i;
+				s_packet.addrs[i * 2] = (source_address + b * 8 + i) & 0xff;
+				s_packet.addrs[i * 2 + 1] = ((source_address + b * 8 + i) >> 8) & 0xff;
+			}
+			else {
+				s_packet.data[i] = 0;
+				s_packet.rwflags |= 1 << i;
+				s_packet.addrs[i * 2] = 0;
+				s_packet.addrs[i * 2 + 1] = 0;
+			}
 		}
-		send(client_socket, (char*)&s_stream, sizeof(BusPacket) * SDHR_STREAM_CHUNK, 0);
-	}
-	size_t remainingPackets = length - (numBlocks * SDHR_STREAM_CHUNK);
-	for (size_t i = 0; i < remainingPackets; i++)
-	{
-		s_packet.addr = source_address + offset;
-		s_packet.data = *(memPtr + offset);
-		++offset;
-		send(client_socket, (char*)&s_packet, sizeof(BusPacket), 0);
+		send(client_socket, (char*)&s_packet, sizeof(s_packet), 0);
 	}
 }

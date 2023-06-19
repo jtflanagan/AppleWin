@@ -1,7 +1,5 @@
 #pragma once
 
-#define SDHR_STREAM_CHUNK  64	// Packets to send at a time in a Bus Data Stream call 
-
 #pragma pack(push)
 #pragma pack(1)
 
@@ -10,18 +8,12 @@
 */
 
 struct BusPacket {
-	WORD addr;
-	BYTE data;
-	BYTE pad;
-};
-
-/**
- * @brief SDHR_STREAM_CHUNK-byte block used to send command data over the network. This is purely
- * for efficency and avoiding sending packets one at a time when the commands are big
-*/
-
-struct BusStream {
-	BusPacket packets[SDHR_STREAM_CHUNK];
+	BYTE seqno[4];
+	BYTE cmdtype;
+	BYTE rwflags;
+	BYTE seqflags;
+	BYTE data[8];
+	BYTE addrs[16];
 };
 
 #pragma pack(pop)
@@ -61,9 +53,9 @@ public:
 
 private:
 	BusPacket s_packet = { 0 };
-	BusStream s_stream = { 0 };
 	SOCKET client_socket = NULL;
 	sockaddr_in server_addr = { 0 };
 	bool bIsConnected = false;
+	uint32_t next_seqno = 0;
 };
 
