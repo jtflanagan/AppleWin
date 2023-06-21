@@ -7,9 +7,12 @@
  * @brief Bus packet struct simulating the data going through the Apple 2 bus
 */
 
-struct BusPacket {
+struct BusHeader {
 	BYTE seqno[4];
 	BYTE cmdtype;
+};
+
+struct BusPacket {
 	BYTE rwflags;
 	BYTE seqflags;
 	BYTE data[8];
@@ -52,7 +55,6 @@ public:
 	void BusDataMemoryStream(LPBYTE memPtr, WORD source_address, int length);
 
 private:
-	BusPacket s_packet = { 0 };
 	SOCKET client_socket = NULL;
 	sockaddr_in server_addr = { 0 };
 	bool bIsConnected = false;
