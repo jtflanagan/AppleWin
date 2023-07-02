@@ -407,6 +407,7 @@ static BYTE __stdcall IORead_C00x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C00x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	MEM_WRITE_CALLBACK(addr, d);
 	if ((addr & 0xf) <= 0xB)
 		return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
 	else
@@ -538,6 +539,7 @@ static BYTE __stdcall IORead_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	MEM_WRITE_CALLBACK(addr, d);
 	switch (addr & 0xf)
 	{
 	case 0x0:	return GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);
@@ -936,7 +938,7 @@ BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value
 
 BYTE __stdcall MEM_WRITE_CALLBACK(WORD address, BYTE value)
 {
-	if (address >= 0x200 && address < 0xC000)
+	if (address >= 0x200 && address < 0xC058)
 	{
 		if (g_sdhrNetworker != nullptr)
 		{
