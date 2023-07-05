@@ -521,6 +521,7 @@ static BYTE __stdcall IOReadWrite_ANx(WORD pc, WORD addr, BYTE bWrite, BYTE d, U
 
 static BYTE __stdcall IORead_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	MEM_WRITE_CALLBACK(addr, d);
 	switch (addr & 0xf)
 	{
 	case 0x0:	return GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);
