@@ -142,7 +142,7 @@ void SDHRNetworker::BusDataPacket(BYTE data)
 	send(client_socket, buf, sizeof(BusHeader) + sizeof(BusPacket), 0);
 }
 
-void SDHRNetworker::BusMemoryPacket(BYTE data, WORD addr)
+void SDHRNetworker::BusMemoryPacket(BYTE data, WORD addr, BOOL rw)
 {
 	char buf[2048];
 	++next_seqno;
@@ -153,7 +153,10 @@ void SDHRNetworker::BusMemoryPacket(BYTE data, WORD addr)
 	h->seqno[3] = (next_seqno >> 24) & 0xff;
 	h->cmdtype = 0;
 	BusPacket* p = (BusPacket*)(buf + sizeof(BusHeader));
-	p->rwflags = 0xfe;
+	if (rw)
+		p->rwflags = 0xfe;
+	else
+		p->rwflags = 0;
 	p->seqflags = 0xff;
 	memset(p->data, 0, sizeof(p->data));
 	p->data[0] = data;

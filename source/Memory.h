@@ -110,7 +110,7 @@ BYTE __stdcall MemSetPaging(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExec
 
 BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
 
-BYTE __stdcall MEM_WRITE_CALLBACK(WORD address, BYTE value);
+BYTE __stdcall MEM_SDHR_CALLBACK(WORD address, BYTE value, BOOL rw);
 
 void	SetExpansionMemType(const SS_CARDTYPE type);
 SS_CARDTYPE GetCurrentExpansionMemType(void);
