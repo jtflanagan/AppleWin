@@ -506,6 +506,8 @@ static BYTE __stdcall IOReadWrite_ANx(WORD pc, WORD addr, BYTE bWrite, BYTE d, U
 	// $C058..C05F
 	_ASSERT((addr & 0xf) >= 8);
 
+	MEM_SDHR_CALLBACK(addr, d, bWrite);
+
 	if (IsAppleIIeOrAbove(GetApple2Type()))
 	{
 		if (!IsAppleIIc(GetApple2Type()) || /* IsIIc && */ SW_IOUDIS)
@@ -939,7 +941,7 @@ BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value
 
 BYTE __stdcall MEM_SDHR_CALLBACK(WORD address, BYTE value, BOOL rw)
 {
-	if (address >= 0x200 && address < 0xC058)
+	if (address >= 0x200 && address < 0xC0FF)
 	{
 		if (g_sdhrNetworker != nullptr)
 		{
