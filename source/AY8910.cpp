@@ -121,7 +121,6 @@ void AY8913::init(void)
 
 AY8913::AY8913(void)
 {
-	memset(sound_ay_registers, 0, sizeof(sound_ay_registers));
 	init();
 	m_fCurrentCLK_AY8910 = g_fCurrentCLK6502;
 };

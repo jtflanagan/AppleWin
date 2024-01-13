@@ -44,7 +44,7 @@ const char CPageSound::m_soundCardChoices[] =	"Mockingboard\0"
 												"SAM\0"
 												"Empty\0";
 
-// Don't reveal MegaAudio/SD Music cards unless it's been specified from the command line.
+// Don't reveal MegaAudio card unless it's been specified from the command line.
 // The reasons being are that:
 // . this card is purely for regression testing against mb-audit
 // . it's confusing to offer this to the end user
@@ -52,8 +52,7 @@ const char CPageSound::m_soundCardChoicesEx[] =	"Mockingboard\0"
 												"Phasor\0"
 												"SAM\0"
 												"Empty\0"
-												"MEGA Audio\0"
-												"SD Music\0";
+												"MEGA Audio\0";
 
 const char CPageSound::m_soundCardChoice_Unavailable[] = "Unavailable\0\0";	// doubly-null terminate
 
@@ -117,7 +116,6 @@ INT_PTR CPageSound::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPAR
 				case SC_SAM: newCard = CT_SAM; break;
 				case SC_EMPTY: newCard = CT_Empty; break;
 				case SC_MEGAAUDIO: newCard = CT_MegaAudio; break;
-				case SC_SDMUSIC: newCard = CT_SDMusic; break;
 				default: _ASSERT(0); break;
 				}
 
@@ -180,7 +178,6 @@ CPageSound::SOUNDCARDCHOICE CPageSound::CardTypeToComboItem(SS_CARDTYPE card)
 	case CT_SAM: return SC_SAM;
 	case CT_Empty: return SC_EMPTY;
 	case CT_MegaAudio: return SC_MEGAAUDIO;
-	case CT_SDMusic: return SC_SDMUSIC;
 	default: _ASSERT(0); return SC_EMPTY;
 	}
 }
@@ -193,28 +190,31 @@ void CPageSound::InitOptions(HWND hWnd)
 	bool isSlot4SoundCard = slot4 == CT_MockingboardC || slot4 == CT_Phasor || slot4 == CT_SAM || slot4 == CT_Empty;
 	bool isSlot5SoundCard = slot5 == CT_MockingboardC || slot5 == CT_Phasor || slot5 == CT_SAM || slot5 == CT_Empty;
 
-	bool isSlotXSoundCardEx = GetCardMgr().GetMockingboardCardMgr().GetEnableExtraCardTypes();
+	bool isSlot4SoundCardEx = slot4 == CT_MegaAudio;
+	bool isSlot5SoundCardEx = slot5 == CT_MegaAudio;
 
-	if (isSlotXSoundCardEx)
+	if (isSlot4SoundCardEx || isSlot5SoundCardEx)
+	{
+		isSlot4SoundCardEx = isSlot5SoundCardEx = true;	// if MegaAudio is visible in either, then make it available in both menus
 		isSlot4SoundCard = isSlot5SoundCard = false;
+	}
 
 	if (isSlot4SoundCard)
 		m_PropertySheetHelper.FillComboBox(hWnd, IDC_SOUNDCARD_SLOT4, m_soundCardChoices, (int)CardTypeToComboItem(slot4));
-	else if (isSlotXSoundCardEx)
+	else if (isSlot4SoundCardEx)
 		m_PropertySheetHelper.FillComboBox(hWnd, IDC_SOUNDCARD_SLOT4, m_soundCardChoicesEx, (int)CardTypeToComboItem(slot4));
 	else
 		m_PropertySheetHelper.FillComboBox(hWnd, IDC_SOUNDCARD_SLOT4, m_soundCardChoice_Unavailable, 0);
 
 	if (isSlot5SoundCard)
 		m_PropertySheetHelper.FillComboBox(hWnd, IDC_SOUNDCARD_SLOT5, m_soundCardChoices, (int)CardTypeToComboItem(slot5));
-	else if (isSlotXSoundCardEx)
+	else if (isSlot5SoundCardEx)
 		m_PropertySheetHelper.FillComboBox(hWnd, IDC_SOUNDCARD_SLOT5, m_soundCardChoicesEx, (int)CardTypeToComboItem(slot5));
 	else
 		m_PropertySheetHelper.FillComboBox(hWnd, IDC_SOUNDCARD_SLOT5, m_soundCardChoice_Unavailable, 0);
 
 	bool enableMBVolume = slot4 == CT_MockingboardC || slot5 == CT_MockingboardC
 						|| slot4 == CT_Phasor || slot5 == CT_Phasor
-						|| slot4 == CT_MegaAudio || slot5 == CT_MegaAudio
-						|| slot4 == CT_SDMusic || slot5 == CT_SDMusic;
+						|| slot4 == CT_MegaAudio || slot5 == CT_MegaAudio;
 	EnableWindow(GetDlgItem(hWnd, IDC_MB_VOLUME), enableMBVolume ? TRUE : FALSE);
 }

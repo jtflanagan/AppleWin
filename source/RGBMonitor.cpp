@@ -1049,8 +1049,7 @@ void UpdateDLoResCell (int x, int y, uint16_t addr, bgra_t *pVideoAddress)
 
 	const BYTE auxval_h = auxval >> 4;
 	const BYTE auxval_l = auxval & 0xF;
-	if (!RGB_IsMacLCCardDLGR())	// "Apple IIe Card for Macintosh LC" has a bug in its DLGR implementation (GH#1258)
-		auxval = (ROL_NIB(auxval_h)<<4) | ROL_NIB(auxval_l);
+	auxval = (ROL_NIB(auxval_h)<<4) | ROL_NIB(auxval_l);
 
 	if ((y & 4) == 0)
 	{
@@ -1214,7 +1213,6 @@ static UINT g_rgbFlags = 0;
 static UINT g_rgbMode = 0;
 static WORD g_rgbPrevAN3Addr = 0;
 static bool g_rgbInvertBit7 = false;
-static bool g_rgbMacLCCardDLGR = false;	// TODO: Persist to save-state
 
 // Video7 RGB card:
 // . Clock in the !80COL state to define the 2 flags: F2, F1
@@ -1275,11 +1273,6 @@ bool RGB_IsMixModeInvertBit7(void)
 	return RGB_IsMixMode() && g_rgbInvertBit7;
 }
 
-bool RGB_IsMacLCCardDLGR(void)
-{
-	return g_rgbMacLCCardDLGR;
-}
-
 void RGB_ResetState(void)
 {
 	g_rgbFlags = 0;
@@ -1290,11 +1283,6 @@ void RGB_ResetState(void)
 void RGB_SetInvertBit7(bool state)
 {
 	g_rgbInvertBit7 = state;
-}
-
-void RGB_SetMacLCCardDLGR(bool state)
-{
-	g_rgbMacLCCardDLGR = state;
 }
 
 //===========================================================================

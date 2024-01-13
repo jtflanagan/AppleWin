@@ -32,7 +32,6 @@ struct CmdLine
 		snesMaxAltControllerType[1] = false;
 		supportDCD = false;
 		enableDumpToRealPrinter = false;
-		supportExtraMBCardTypes = false;
 		noDisk2StepperDefer = false;
 		szSnapshotName = NULL;
 		szScreenshotFilename = NULL;
@@ -75,7 +74,6 @@ struct CmdLine
 	bool snesMaxAltControllerType[2];
 	bool supportDCD;
 	bool enableDumpToRealPrinter;
-	bool supportExtraMBCardTypes;
 	bool noDisk2StepperDefer;	// debug
 	SS_CARDTYPE slotInsert[NUM_SLOTS];
 	SlotInfo slotInfo[NUM_SLOTS];

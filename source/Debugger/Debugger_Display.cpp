@@ -1246,10 +1246,8 @@ void DrawConsoleCursor ()
 	int nLineHeight = GetConsoleLineHeightPixels();
 	int y = 0;
 
-	const int nInputWidth = min( g_nConsoleInputChars, g_nConsoleInputScrollWidth ); // NOTE: Keep in Sync! DrawConsoleInput() and DrawConsoleCursor()
-
 	RECT rect;
-	rect.left   = (nInputWidth + g_nConsolePromptLen) * nWidth;
+	rect.left   = (g_nConsoleInputChars + g_nConsolePromptLen) * nWidth;
 	rect.top    = GetConsoleTopPixels( y );
 	rect.bottom = rect.top + nLineHeight; //g_nFontHeight;
 	rect.right  = rect.left + nWidth;
@@ -1297,31 +1295,9 @@ void DrawConsoleInput ()
 	RECT rect;
 	GetConsoleRect( 0, rect );
 
-	// For long input only show last g_nConsoleInputScrollWidth characters
-	if (g_nConsoleInputChars > g_nConsoleInputScrollWidth)
-	{
-		assert(g_nConsoleInputScrollWidth <= CONSOLE_WIDTH); // NOTE: To support a wider input line the size of g_aConsoleInput[] must be increased
-
-		//	g_nConsoleInputMaxLen      = 16;
-		//	g_nConsoleInputScrollWidth = 10;
-		//
-		//  123456789ABCDEF  g_aConsoleInput[]
-		//                 ^ g_nConsoleInputChars       = 15
-		//  [--------]       g_nConsoleInputScrollWidth = 10
-		// >6789ABCDEF_      g_nConsoleInputMaxLen      = 16
-		static char aScrollingInput[ CONSOLE_WIDTH+1 ];
-		aScrollingInput[0] = g_aConsoleInput[0];                                           // 1. Start-of-Line
-
-		const int nInputOffset =      g_nConsoleInputChars - g_nConsoleInputScrollWidth  ; // 2. Middle
-		const int nInputWidth  = min( g_nConsoleInputChars,  g_nConsoleInputScrollWidth ); // NOTE: Keep in Sync! DrawConsoleInput() and DrawConsoleCursor()
-		strncpy( aScrollingInput+1, g_aConsoleInput + 1 + nInputOffset, nInputWidth );     // +1 to skip prompt
-
-		aScrollingInput[ g_nConsoleInputScrollWidth+1 ] = 0;                               // 3. End-of-Line leave room for cursor
-
-		PrintText( aScrollingInput, rect );
-	}
-	else
-		 PrintText( g_aConsoleInput, rect );
+	// Console background is drawn in DrawWindowBackground_Info
+//	DrawConsoleLine( g_aConsoleInput, 0 );
+	PrintText( g_aConsoleInput, rect );
 }
 
 
@@ -1435,7 +1411,7 @@ WORD DrawDisassemblyLine ( int iLine, const WORD nBaseAddress )
 	int  bAddressIsBookmark = Bookmark_Find( nBaseAddress );
 
 	DebugColors_e iBackground = BG_DISASM_1;
-	DebugColors_e iForeground = FG_DISASM_ADDRESS;
+	DebugColors_e iForeground = FG_DISASM_MNEMONIC; // FG_DISASM_TEXT;
 	bool bCursorLine = false;
 
 	if (((! g_bDisasmCurBad) && (iLine == g_nDisasmCurLine))
@@ -1498,12 +1474,21 @@ WORD DrawDisassemblyLine ( int iLine, const WORD nBaseAddress )
 		}
 		else
 		{
-			iForeground = FG_DISASM_ADDRESS;
+			iForeground = FG_DISASM_MNEMONIC;
 		}
 	}
 
 	DebuggerSetColorBG( DebuggerGetColor( iBackground ) );
 	DebuggerSetColorFG( DebuggerGetColor( iForeground ) );
+
+	// Address
+	if (! bCursorLine)
+		DebuggerSetColorFG( DebuggerGetColor( FG_DISASM_ADDRESS ) );
+//	else
+//	{
+//		DebuggerSetColorBG( GetDebuggerMemDC(), DebuggerGetColor( FG_DISASM_BOOKMARK ) ); // swapped
+//		DebuggerSetColorFG( GetDebuggerMemDC(), DebuggerGetColor( BG_DISASM_BOOKMARK ) ); // swapped
+//	}
 
 	if ( g_bConfigDisasmAddressView )
 	{
