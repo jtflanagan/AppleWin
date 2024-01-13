@@ -627,12 +627,12 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 	// Currently only support one RIFF file
 	if (!g_cmdLine.wavFileSpeaker.empty())
 	{
-		if (RiffInitWriteFile(g_cmdLine.wavFileSpeaker.c_str(), SPKR_SAMPLE_RATE, 1))
+		if (RiffInitWriteFile(g_cmdLine.wavFileSpeaker.c_str(), SPKR_SAMPLE_RATE, Spkr_GetNumChannels()))
 			Spkr_OutputToRiff();
 	}
 	else if (!g_cmdLine.wavFileMockingboard.empty())
 	{
-		if (RiffInitWriteFile(g_cmdLine.wavFileMockingboard.c_str(), 44100, 2))
+		if (RiffInitWriteFile(g_cmdLine.wavFileMockingboard.c_str(), MockingboardCard::SAMPLE_RATE, MockingboardCard::NUM_MB_CHANNELS))
 			GetCardMgr().GetMockingboardCardMgr().OutputToRiff();
 	}
 
@@ -865,6 +865,9 @@ static void RepeatInitialization(void)
 
 		if (g_cmdLine.bRemoveNoSlotClock)
 			MemRemoveNoSlotClock();
+
+		if (g_cmdLine.supportExtraMBCardTypes)
+			GetCardMgr().GetMockingboardCardMgr().SetEnableExtraCardTypes(true);
 
 		if (g_cmdLine.noDisk2StepperDefer)
 			GetCardMgr().GetDisk2CardMgr().SetStepperDefer(false);

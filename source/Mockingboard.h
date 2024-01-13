@@ -69,6 +69,10 @@ public:
 	static std::string GetSnapshotCardName(void);
 	static std::string GetSnapshotCardNamePhasor(void);
 	static std::string GetSnapshotCardNameMegaAudio(void);
+	static std::string GetSnapshotCardNameSDMusic(void);
+
+	static const unsigned short NUM_MB_CHANNELS = 2;
+	static const DWORD SAMPLE_RATE = 44100;	// Use a base freq so that DirectX (or sound h/w) doesn't have to up/down-sample
 
 private:
 	enum MockingboardUnitState_e { AY_NOP0, AY_NOP1, AY_INACTIVE, AY_READ, AY_NOP4, AY_NOP5, AY_WRITE, AY_LATCH };
@@ -83,6 +87,7 @@ private:
 		MockingboardUnitState_e state[NUM_AY8913_PER_SUBUNIT];	// AY's PSG function
 		bool isAYLatchedAddressValid[NUM_AY8913_PER_SUBUNIT];
 		bool isChipSelected[NUM_AY8913_PER_SUBUNIT];
+		bool isBusDriven;
 
 		MB_SUBUNIT(UINT slot, SS_CARDTYPE type) : sy6522(slot, type == CT_MegaAudio), ssi263(slot)
 		{
@@ -98,11 +103,19 @@ private:
 			isAYLatchedAddressValid[0] = isAYLatchedAddressValid[1] = false;	// after AY reset
 			isChipSelected[0] = type == CT_Phasor ? false : true;	// Only Phasor is false, all other MB variants are true
 			isChipSelected[1] = false;
+			SetBusState(false);
+		}
+
+		void SetBusState(bool state)
+		{
+			isBusDriven = state;
+			sy6522.SetBusBeingDriven(state);
 		}
 	};
 
-	void WriteToORB(BYTE subunit);
-	void AY8910_Write(BYTE subunit, BYTE ay, BYTE value);
+	void WriteToORB(BYTE subunit, BYTE subunitForAY=0);
+	void AY8913_Reset(BYTE subunit);
+	void AY8913_Write(BYTE subunit, BYTE ay, BYTE value);
 	void UpdateIFRandIRQ(MB_SUBUNIT* pMB, BYTE clr_mask, BYTE set_mask);
 
 	void Phasor_SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
@@ -149,8 +162,6 @@ private:
 	SyncEvent* m_syncEvent[kNumSyncEvents];
 
 	UINT64 m_lastCumulativeCycle;
-
-	static const DWORD SAMPLE_RATE = 44100;	// Use a base freq so that DirectX (or sound h/w) doesn't have to up/down-sample
 
 	short* m_ppAYVoiceBuffer[NUM_VOICES];
 

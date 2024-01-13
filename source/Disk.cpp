@@ -100,13 +100,15 @@ Disk2InterfaceCard::~Disk2InterfaceCard(void)
 bool Disk2InterfaceCard::GetEnhanceDisk(void) { return m_enhanceDisk; }
 void Disk2InterfaceCard::SetEnhanceDisk(bool bEnhanceDisk) { m_enhanceDisk = bEnhanceDisk; }
 
-int Disk2InterfaceCard::GetCurrentDrive(void)  { return m_currDrive; }
-int Disk2InterfaceCard::GetCurrentTrack(void)  { return ImagePhaseToTrack(m_floppyDrive[m_currDrive].m_disk.m_imagehandle, m_floppyDrive[m_currDrive].m_phasePrecise, false); }
-float Disk2InterfaceCard::GetCurrentPhase(void)  { return m_floppyDrive[m_currDrive].m_phasePrecise; }
-UINT Disk2InterfaceCard::GetCurrentBitOffset(void) { return m_floppyDrive[m_currDrive].m_disk.m_bitOffset; }
+UINT   Disk2InterfaceCard::GetCurrentBitOffset  (void) { return m_floppyDrive[m_currDrive].m_disk.m_bitOffset; }
 double Disk2InterfaceCard::GetCurrentExtraCycles(void) { return m_floppyDrive[m_currDrive].m_disk.m_extraCycles; }
+float  Disk2InterfaceCard::GetCurrentPhase      (void) { return m_floppyDrive[m_currDrive].m_phasePrecise; }
+int    Disk2InterfaceCard::GetCurrentDrive      (void) { return m_currDrive; }
+BYTE   Disk2InterfaceCard::GetCurrentShiftReg   (void) { return m_shiftReg; }
+int    Disk2InterfaceCard::GetCurrentTrack      (void) { return ImagePhaseToTrack(m_floppyDrive[m_currDrive].m_disk.m_imagehandle, m_floppyDrive[m_currDrive].m_phasePrecise, false); }
+
 float Disk2InterfaceCard::GetPhase(const int drive) { return m_floppyDrive[drive].m_phasePrecise; }
-int Disk2InterfaceCard::GetTrack(const int drive)  { return ImagePhaseToTrack(m_floppyDrive[drive].m_disk.m_imagehandle, m_floppyDrive[drive].m_phasePrecise, false); }
+int   Disk2InterfaceCard::GetTrack(const int drive)  { return ImagePhaseToTrack(m_floppyDrive[drive].m_disk.m_imagehandle, m_floppyDrive[drive].m_phasePrecise, false); }
 
 std::string Disk2InterfaceCard::FormatIntFracString(float phase, bool hex)
 {
@@ -130,24 +132,34 @@ std::string Disk2InterfaceCard::GetCurrentPhaseString(void)
 	return FormatIntFracString(m_floppyDrive[m_currDrive].m_phasePrecise, true);
 }
 
-LPCTSTR Disk2InterfaceCard::GetCurrentState(void)
+LPCTSTR Disk2InterfaceCard::GetCurrentState(Disk_Status_e& eDiskState_)
 {
 	if (m_floppyDrive[m_currDrive].m_disk.m_imagehandle == NULL)
-		return "Empty";
-
+	{
+		eDiskState_ = DISK_STATUS_EMPTY;
+	}
+	else
 	if (!m_floppyMotorOn)
 	{
 		if (m_floppyDrive[m_currDrive].m_spinning > 0)
-			return "Off (spinning)";
+		{
+			eDiskState_ = DISK_STATUS_SPIN;
+		}
 		else
-			return "Off";
+		{
+			eDiskState_ = DISK_STATUS_OFF;
+		}
 	}
 	else if (m_seqFunc.writeMode)
 	{
 		if (m_floppyDrive[m_currDrive].m_disk.m_bWriteProtected)
-			return "Writing (write protected)";
+		{
+			eDiskState_ = DISK_STATUS_PROT;
+		}
 		else
-			return "Writing";
+		{
+			eDiskState_ = DISK_STATUS_WRITE;
+		}
 	}
 	else
 	{
@@ -159,8 +171,22 @@ LPCTSTR Disk2InterfaceCard::GetCurrentState(void)
 				return "Reading write protect state (not write protected)";
 		}
 		else*/
-			return "Reading";
+		{
+			eDiskState_ = DISK_STATUS_READ;
+		}
 	}
+
+	static const char *aDiskStateMiniDesc[NUM_DISK_STATUS] =
+	{
+		 "Off"  // DISK_STATUS_OFF
+		,"R"    // DISK_STATUS_READ
+		,"W"    // DISK_STATUS_WRITE
+		,"WP"   // DISK_STATUS_PROT
+		,"n/a"  // DISK_STATUS_EMPTY
+		,"Spin" // DISK_STATUS_SPIN
+	};
+
+	return aDiskStateMiniDesc[eDiskState_];
 }
 
 //===========================================================================
@@ -217,13 +243,11 @@ void Disk2InterfaceCard::SaveLastDiskImage(const int drive)
 	if (m_slot != SLOT6 || drive != DRIVE_1)
 		return;
 
-	TCHAR szPathName[MAX_PATH];
-	StringCbCopy(szPathName, MAX_PATH, pathName.c_str());
-	TCHAR* slash = _tcsrchr(szPathName, PATH_SEPARATOR);
-	if (slash != NULL)
+	const size_t slash = pathName.find_last_of(PATH_SEPARATOR);
+	if (slash != std::string::npos)
 	{
-		slash[1] = '\0';
-		RegSaveString(REG_PREFS, REGVALUE_PREF_START_DIR, 1, szPathName);
+		const std::string dirName = pathName.substr(0, slash + 1);
+		RegSaveString(REG_PREFS, REGVALUE_PREF_START_DIR, 1, dirName);
 	}
 }
 
@@ -764,7 +788,7 @@ Disk_Status_e Disk2InterfaceCard::GetDriveLightStatus(const int drive)
 		}
 	}
 
-	return DISK_STATUS_OFF;
+	return DISK_STATUS_EMPTY;
 }
 
 void Disk2InterfaceCard::GetLightStatus(Disk_Status_e *pDisk1Status, Disk_Status_e *pDisk2Status)
@@ -861,9 +885,10 @@ bool Disk2InterfaceCard::IsConditionForFullSpeed(void)
 
 //===========================================================================
 
-void Disk2InterfaceCard::NotifyInvalidImage(const int drive, LPCTSTR pszImageFilename, const ImageError_e Error)
+void Disk2InterfaceCard::NotifyInvalidImage(const int drive, const std::string & szImageFilename, const ImageError_e Error)
 {
 	std::string strText;
+	const char * pszImageFilename = szImageFilename.c_str();
 
 	switch (Error)
 	{
@@ -1122,6 +1147,9 @@ void __stdcall Disk2InterfaceCard::ReadWrite(WORD pc, WORD addr, BYTE bWrite, BY
 		}
 #endif
 	}
+
+	// GH #1212 We have a non .WOZ disk, mirror so that GetCurrentShiftReg() returns last nibble read
+	m_shiftReg = m_floppyLatch;
 
 	if (++pFloppy->m_byte >= pFloppy->m_nibbles)
 		pFloppy->m_byte = 0;
@@ -1813,17 +1841,18 @@ bool Disk2InterfaceCard::UserSelectNewDiskImage(const int drive, LPCSTR pszFilen
 
 	if (GetOpenFileName(&ofn))
 	{
+		std::string openFilename = filename;
 		if ((!ofn.nFileExtension) || !filename[ofn.nFileExtension])
-			StringCbCat(filename, MAX_PATH, TEXT(".dsk"));
+			openFilename += TEXT(".dsk");
 
-		ImageError_e Error = InsertDisk(drive, filename, ofn.Flags & OFN_READONLY, IMAGE_CREATE);
+		ImageError_e Error = InsertDisk(drive, openFilename, ofn.Flags & OFN_READONLY, IMAGE_CREATE);
 		if (Error == eIMAGE_ERROR_NONE)
 		{
 			bRes = true;
 		}
 		else
 		{
-			NotifyInvalidImage(drive, filename, Error);
+			NotifyInvalidImage(drive, openFilename, Error);
 		}
 	}
 

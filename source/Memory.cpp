@@ -1314,7 +1314,7 @@ void MemDestroy()
 	delete [] pCxRomPeripheral;
 
 #ifdef RAMWORKS
-	for (UINT i=1; i<g_uMaxExPages; i++)
+	for (UINT i=1; i<kMaxExMemoryBanks; i++)
 	{
 		if (RWpages[i])
 		{
@@ -1454,10 +1454,14 @@ LPBYTE MemGetMainPtr(const WORD offset)
 
 // Used by:
 // . Savestate: MemSaveSnapshotMemory(), MemLoadSnapshotAux()
+// . VidHD    : SaveSnapshot(), LoadSnapshot()
 // . Debugger : CmdMemorySave(), CmdMemoryLoad()
-LPBYTE MemGetBankPtr(const UINT nBank)
+LPBYTE MemGetBankPtr(const UINT nBank, const bool isSaveSnapshotOrDebugging)
 {
-	BackMainImage();	// Flush any dirty pages to back-buffer
+	// Only call BackMainImage() when a consistent 64K bank is needed, eg. for saving snapshot or debugging
+	// - for snapshot loads it's pointless, and worse it can corrupt pages 0 & 1 for aux banks (GH#1262)
+	if (isSaveSnapshotOrDebugging)
+		BackMainImage();	// Flush any dirty pages to back-buffer
 
 #ifdef RAMWORKS
 	if (nBank > g_uMaxExPages)
@@ -2264,7 +2268,7 @@ static const std::string& MemGetSnapshotAuxMemStructName(void)
 
 static void MemSaveSnapshotMemory(YamlSaveHelper& yamlSaveHelper, bool bIsMainMem, UINT bank=0, UINT size=64*1024)
 {
-	LPBYTE pMemBase = MemGetBankPtr(bank);
+	LPBYTE pMemBase = MemGetBankPtr(bank, true);
 
 	if (bIsMainMem)
 	{
@@ -2374,11 +2378,8 @@ bool MemLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 
 	yamlLoadHelper.PopMap();
 
-	//
-
-	// NB. MemUpdatePaging(TRUE) called at end of Snapshot_LoadState_v2()
-	UpdatePaging(1);	// Initialize=1 (Still needed, even with call to MemUpdatePaging() - why?)
-						// TC-TODO: At this point, the cards haven't been loaded, so the card's expansion ROM is unknown - so pointless(?) calling this now
+	// NB. MemInitializeFromSnapshot()->MemUpdatePaging() called at end of Snapshot_LoadState_v2()
+	// . At this point, the cards haven't been loaded (no aux mem & any card's expansion ROM is unknown) - so pointless calling MemUpdatePaging() at this stage (GH#1267)
 
 	return true;
 }
@@ -2465,7 +2466,7 @@ static void MemLoadSnapshotAuxCommon(YamlLoadHelper& yamlLoadHelper, const std::
 
 	for(UINT uBank = 1; uBank <= g_uMaxExPages; uBank++)
 	{
-		LPBYTE pBank = MemGetBankPtr(uBank);
+		LPBYTE pBank = MemGetBankPtr(uBank, false);
 		if (!pBank)
 		{
 			pBank = RWpages[uBank-1] = ALIGNED_ALLOC(_6502_MEM_LEN);

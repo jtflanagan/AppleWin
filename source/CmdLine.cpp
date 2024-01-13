@@ -176,7 +176,15 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 				if (strcmp(lpCmdLine, "hdc") == 0)
 					g_cmdLine.slotInsert[slot] = CT_GenericHDD;
 				if (strcmp(lpCmdLine, "megaaudio") == 0)
+				{
 					g_cmdLine.slotInsert[slot] = CT_MegaAudio;
+					g_cmdLine.supportExtraMBCardTypes = true;
+				}
+				if (strcmp(lpCmdLine, "sdmusic") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_SDMusic;
+					g_cmdLine.supportExtraMBCardTypes = true;
+				}
 				if (strcmp(lpCmdLine, "parallel") == 0)
 				{
 					if (slot == SLOT1)
@@ -483,6 +491,10 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		{
 			RGB_SetInvertBit7(true);
 		}
+		else if (strcmp(lpCmdLine, "-mac-lc-card-dlgr") == 0)	// GH#1258
+		{
+			RGB_SetMacLCCardDLGR(true);
+		}
 		else if (strcmp(lpCmdLine, "-screenshot-and-exit") == 0)	// GH#616: For testing - Use in combination with -load-state
 		{
 			g_cmdLine.szScreenshotFilename = GetCurrArg(lpNextArg);
@@ -598,6 +610,12 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 			lpCmdLine = GetCurrArg(lpNextArg);
 			lpNextArg = GetNextArg(lpNextArg);
 			g_cmdLine.wavFileMockingboard = lpCmdLine;
+		}
+		else if (strcmp(lpCmdLine, "-mb-audit") == 0)	// enable selection of additional sound cards, eg. for mb-audit
+		{
+			lpCmdLine = GetCurrArg(lpNextArg);
+			lpNextArg = GetNextArg(lpNextArg);
+			g_cmdLine.supportExtraMBCardTypes = true;
 		}
 		else if (strcmp(lpCmdLine, "-no-disk2-stepper-defer") == 0)	// a debug switch (likely to be removed in a future version)
 		{
