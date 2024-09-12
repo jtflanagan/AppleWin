@@ -1352,7 +1352,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	return 0;
 }
 
-BYTE __stdcall MEM_WRITE_CALLBACK(WORD address, BYTE value)
+BYTE __stdcall MEM_SDHR_CALLBACK(WORD address, BYTE value, BOOL rw)
 {
 	return 0;
 }

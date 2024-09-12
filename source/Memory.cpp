@@ -407,6 +407,7 @@ static BYTE __stdcall IORead_C00x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C00x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	MEM_SDHR_CALLBACK(addr, d, true);
 	if ((addr & 0xf) <= 0xB)
 		return MemSetPaging(pc, addr, bWrite, d, nExecutedCycles);
 	else
@@ -505,6 +506,8 @@ static BYTE __stdcall IOReadWrite_ANx(WORD pc, WORD addr, BYTE bWrite, BYTE d, U
 	// $C058..C05F
 	_ASSERT((addr & 0xf) >= 8);
 
+	MEM_SDHR_CALLBACK(addr, d, bWrite);
+
 	if (IsAppleIIeOrAbove(GetApple2Type()))
 	{
 		if (!IsAppleIIc(GetApple2Type()) || /* IsIIc && */ SW_IOUDIS)
@@ -520,6 +523,7 @@ static BYTE __stdcall IOReadWrite_ANx(WORD pc, WORD addr, BYTE bWrite, BYTE d, U
 
 static BYTE __stdcall IORead_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	MEM_SDHR_CALLBACK(addr, d, false);
 	switch (addr & 0xf)
 	{
 	case 0x0:	return GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);
@@ -538,6 +542,7 @@ static BYTE __stdcall IORead_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C05x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
+	MEM_SDHR_CALLBACK(addr, d, true);
 	switch (addr & 0xf)
 	{
 	case 0x0:	return GetVideo().VideoSetMode(pc, addr, bWrite, d, nExecutedCycles);
@@ -934,13 +939,13 @@ BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value
 	}
 }
 
-BYTE __stdcall MEM_WRITE_CALLBACK(WORD address, BYTE value)
+BYTE __stdcall MEM_SDHR_CALLBACK(WORD address, BYTE value, BOOL rw)
 {
-	if (address >= 0x200 && address < 0xC000)
+	if (address >= 0x200 && address < 0xC0FF)
 	{
 		if (g_sdhrNetworker != nullptr)
 		{
-			g_sdhrNetworker->BusMemoryPacket(value, address);
+			g_sdhrNetworker->BusMemoryPacket(value, address, rw);
 		}
 	}
 	return 0;

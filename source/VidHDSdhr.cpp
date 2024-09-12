@@ -28,6 +28,7 @@ enum ShdrCmd_e {
 
 	SDHR_CMD_CHANGE_RESOLUTION = 50,
 	SDHR_CMD_UPDATE_WINDOW_SET_SIZE = 51,
+	SDHR_CMD_UPDATE_WINDOW_DISPLAY_IMAGE = 52,
 };
 #pragma pack(push)
 #pragma pack(1)
@@ -120,6 +121,11 @@ struct UpdateWindowSetWindowSizeCommand {
 struct UpdateWindowEnableCmd {
 	uint8_t window_index;
 	uint8_t enabled;
+};
+
+struct UpdateWindowDisplayImageCmd {
+	uint8_t window_index;
+	uint8_t asset_index;
 };
 
 #pragma pack(pop)
@@ -598,6 +604,13 @@ bool VidHDSdhr::ProcessCommands() {
 		} break;
 		case SDHR_CMD_CHANGE_RESOLUTION: {
 			LogFileOutput("ChangeResolution\n");
+		} break;
+		case SDHR_CMD_UPDATE_WINDOW_DISPLAY_IMAGE: {
+			LogFileOutput("UpdateWindowDisplayImage\n");
+			if (!CheckCommandLength(p, end, sizeof(UpdateWindowDisplayImageCmd))) return false;
+			auto cmd = (UpdateWindowDisplayImageCmd*)p;
+			Window* r = windows + cmd->window_index;
+			// Not implemented
 		} break;
 		default:
 			CommandError("unrecognized command");

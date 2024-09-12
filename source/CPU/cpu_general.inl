@@ -82,7 +82,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 			if ((addr & 0xFFF0) == 0xC0B0)															\
 				DBGPRINT(L"_WRITE pc: %X, addr: %X, val %X\n", regs.pc, addr, (BYTE)(a)); \
 			}																			\
-			MEM_WRITE_CALLBACK(addr, (BYTE)(a));										\
+			MEM_SDHR_CALLBACK(addr, (BYTE)(a), true);									\
 		}
 #define _WRITE_WITH_IO_F8xx(a) {											/* GH#827 */\
 			if (addr >= 0xF800)															\
@@ -100,7 +100,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 			}																			\
 			if ((addr & 0xFFF0) == 0xC0B0)															\
 				DBGPRINT(L"_WRITE_WITH_IO_F8xx pc: %X, addr: %X, val %X\n", regs.pc, addr, (BYTE)(a)); \
-			MEM_WRITE_CALLBACK(addr, (BYTE)(a));										\
+			MEM_SDHR_CALLBACK(addr, (BYTE)(a), true);									\
 		}
 
 #define ON_PAGECROSS_REPLACE_HI_ADDR if ((base ^ addr) >> 8) {addr = (val<<8) | (addr&0xff);} /* GH#282 */
